@@ -9,6 +9,7 @@ _使用go-cqhttp自动推送微博/哔哩哔哩动态/哔哩哔哩直播状态�
 功能暂未经过测试，有什么Bug，功能建议或是疑问欢迎提[Issues](https://github.com/Cloud-wish/Dynamic-Bot/issues)
 
 ## 使用
+本Bot设计为配合[Dynamic-Crawler](https://github.com/Cloud-wish/Dynamic-Crawler)使用，请事先部署好Crawler服务！
 ### 启动
 `python main.py`
 ### 命令列表

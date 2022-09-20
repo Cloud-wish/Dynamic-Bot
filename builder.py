@@ -222,6 +222,7 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     name = data["name"]
     content: list[str] = list()
+    content.append('[CQ:image,file='+data["avatar"]+']')
     if not data.get("is_retweet", False):
         content.append(f"{name}在{data['created_time']}")
         if data["dyn_type"] == 8:

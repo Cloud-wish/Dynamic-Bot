@@ -14,13 +14,21 @@ from util.logger import init_logger
 from util.bot_command import cmd
 from util.send_guild_message import send_guild_msg
 from builder import build_wb_msg, build_dyn_msg, build_live_msg
-from constant import command_dict, type_dict
+from constant import command_dict, type_dict, sub_type_dict
 
 log_path = os.path.join(os.path.dirname(__file__), "logs", "bot")
 logger: logging.Logger = init_logger(log_path)
 msg_queue = queue.Queue(maxsize=-1) # infinity length
 config_dict = dict()
 push_config_dict = dict()
+
+permission_dict = None
+
+try:
+    with open("permission.json", "r", encoding="UTF-8") as f:
+        permission_dict = jsons.loads(f.read())
+except:
+    pass
 
 BOT_HELP = """1 /添加微博推送
 使用方法：@机器人 /添加微博推送 微博UID
@@ -71,12 +79,12 @@ def load_config():
             push_config_dict = jsons.loads(f.read())
             for typ in push_config_dict.keys():
                 if(type(push_config_dict[typ]) == dict):
-                    for uid in push_config_dict[typ].keys():
-                        if(type(push_config_dict[typ][uid]) == dict):
-                            for subtype in push_config_dict[typ][uid].keys():
-                                push_config_dict[typ][uid][subtype] = set([tuple(channel) for channel in push_config_dict[typ][uid][subtype]])
+                    for x in push_config_dict[typ].keys():
+                        if(type(push_config_dict[typ][x]) == dict):
+                            for uid in push_config_dict[typ][x].keys():
+                                push_config_dict[typ][x][uid] = set([tuple(channel) for channel in push_config_dict[typ][x][uid]])
                         else:
-                            push_config_dict[typ][uid] = set([tuple(channel) for channel in push_config_dict[typ][uid]])
+                            push_config_dict[typ][x] = set([tuple(channel) for channel in push_config_dict[typ][x]])
                 else:
                     push_config_dict[typ] = set([tuple(channel) for channel in push_config_dict[typ]])
     except:
@@ -99,15 +107,17 @@ def put_guild_channel_msg(guild_id: str, channel_id: str, message: list[str]):
     }
     msg_queue.put(data)
 
-async def add_crawler(typ: str, uid: str) -> bool:
+async def add_crawler(uid: str, typ: str, timeout: int = 10, **kwargs) -> bool:
     cmd = {
         "type": typ,
         "uid": uid,
         "client_name": config_dict["bot"]["client_name"]
     }
+    for key in kwargs.keys():
+        cmd[key] = kwargs[key]
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(url=config_dict["crawler"]["http_url"]+"/add", json=cmd, timeout=5)
+            resp = await client.post(url=config_dict["crawler"]["http_url"]+"/add", json=cmd, timeout=timeout)
             resp = resp.json()
             if(resp["code"] != 0):
                 logger.error(f"向Crawler添加推送时返回错误！\ncode：{resp['code']} msg：{resp['msg']}")
@@ -118,15 +128,17 @@ async def add_crawler(typ: str, uid: str) -> bool:
         return False
     return True
 
-async def remove_crawler(typ: str, uid: str) -> bool:
+async def remove_crawler(uid: str, typ: str, subtype: str = None) -> bool:
     cmd = {
         "type": typ,
         "uid": uid,
         "client_name": config_dict["bot"]["client_name"]
     }
+    if subtype:
+        cmd["subtype"] = subtype
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(url=config_dict["crawler"]["http_url"]+"/remove", json=cmd, timeout=5)
+            resp = await client.post(url=config_dict["crawler"]["http_url"]+"/remove", json=cmd, timeout=10)
             resp = resp.json()
             if(resp["code"] != 0):
                 logger.error(f"向Crawler删除推送时返回错误！\ncode：{resp['code']} msg：{resp['msg']}")
@@ -137,7 +149,17 @@ async def remove_crawler(typ: str, uid: str) -> bool:
         return False
     return True
 
-async def get_user_auth(guild_id, user_id):
+async def get_user_auth(guild_id: str, user_id: str, typ: str = None, subtype: str = None):
+    global permission_dict
+    if permission_dict:
+        if user_id in permission_dict["admin"]:
+            return True
+        if typ:
+            if subtype:
+                if typ in permission_dict["subtype"] and subtype in permission_dict["subtype"][typ]:
+                    return user_id in permission_dict["subtype"][typ][subtype]
+            elif typ in permission_dict["type"]:
+                return user_id in permission_dict["type"][typ]
     message = {
         "guild_id":guild_id,
         "user_id":user_id
@@ -154,13 +176,15 @@ async def get_user_auth(guild_id, user_id):
 
 @cmd((command_dict["add"]["weibo"], "weibo"), (command_dict["add"]["bili_dyn"], "bili_dyn"), (command_dict["add"]["bili_live"], "bili_live"))
 async def add_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel[0], user_id, typ):
+        return None
     global push_config_dict
     if not typ in push_config_dict:
         push_config_dict[typ] = dict()
     if not uid in push_config_dict[typ]:
         push_config_dict[typ][uid] = set()
     if not channel in push_config_dict[typ][uid]:
-        resp = await add_crawler(typ, uid)
+        resp = await add_crawler(uid, typ)
         if(resp):
             push_config_dict[typ][uid].add(channel)
             save_push_config()
@@ -170,12 +194,40 @@ async def add_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[st
     else:
         return f"UID：{uid} 的{type_dict[typ]}推送已存在！"
 
+@cmd((command_dict["add"]["weibo_comment"], "weibo", "comment"), (command_dict["add"]["bili_dyn_top_comment"], "bili_dyn", "comment"), (command_dict["add"]["bili_dyn_latest_comment"], "bili_dyn", "comment"))
+async def add_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel[0], user_id, typ):
+        return None
+    global push_config_dict
+    if (not typ in push_config_dict) or (not uid in push_config_dict[typ]):
+        return f"请先添加UID：{uid} 的{type_dict[typ]}推送！"
+    if not subtype in push_config_dict[typ]:
+        push_config_dict[typ][subtype] = dict()
+    if not uid in push_config_dict[typ][subtype]:
+        push_config_dict[typ][subtype][uid] = set()
+    if not channel in push_config_dict[typ][subtype][uid]:
+        if typ == "bili_dyn" and subtype == "comment":
+            is_top = cmd == command_dict["add"]["bili_dyn_top_comment"]
+            resp = await add_crawler(uid, typ, 37, subtype = subtype, is_top = is_top)
+        else:
+            resp = await add_crawler(uid, typ, 37, subtype = subtype)
+        if(resp):
+            push_config_dict[typ][subtype][uid].add(channel)
+            save_push_config()
+            return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送添加成功！"
+        else:
+            return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送添加失败，请与管理员联系！"
+    else:
+        return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送已存在！"
+
 @cmd((command_dict["remove"]["weibo"], "weibo"), (command_dict["remove"]["bili_dyn"], "bili_dyn"), (command_dict["remove"]["bili_live"], "bili_live"))
 async def remove_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel[0], user_id, typ):
+        return None
     global push_config_dict
     if typ in push_config_dict and uid in push_config_dict[typ] and channel in push_config_dict[typ][uid]:
         if(len(push_config_dict[typ][uid]) == 1):
-            resp = await remove_crawler(typ, uid)
+            resp = await remove_crawler(uid, typ)
             if(resp):
                 del push_config_dict[typ][uid]
                 save_push_config()
@@ -183,26 +235,60 @@ async def remove_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple
             else:
                 return f"UID：{uid} 的{type_dict[typ]}推送删除失败，请与管理员联系！"
         else:
-            push_config_dict[typ][uid].remove(uid)
+            push_config_dict[typ][uid].remove(channel)
             save_push_config()
             return f"UID：{uid} 的{type_dict[typ]}推送删除成功！"
     else:
         return f"UID：{uid} 的{type_dict[typ]}推送不存在！"
 
+@cmd((command_dict["remove"]["weibo_comment"], "weibo", "comment"), (command_dict["remove"]["bili_dyn_top_comment"], "bili_dyn", "comment"), (command_dict["remove"]["bili_dyn_latest_comment"], "bili_dyn", "comment"))
+async def remove_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel[0], user_id, typ):
+        return None
+    global push_config_dict
+    if typ in push_config_dict and subtype in push_config_dict[typ] and uid in push_config_dict[typ][subtype] and channel in push_config_dict[typ][subtype][uid]:
+        if(len(push_config_dict[typ][subtype][uid]) == 1):
+            resp = await remove_crawler(uid, typ, subtype)
+            if(resp):
+                del push_config_dict[typ][subtype][uid]
+                save_push_config()
+                return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送删除成功！"
+            else:
+                return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送删除失败，请与管理员联系！"
+        else:
+            push_config_dict[typ][subtype][uid].remove(channel)
+            save_push_config()
+            return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送删除成功！"
+    else:
+        return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送不存在！"
+
 @cmd((command_dict["config"]["channel"], ))
 async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel[0], user_id, typ):
+        return None
     reply = ["当前子频道开启的推送如下：\n"]
     for typ in type_dict.keys():
         reply.append(f"{type_dict[typ]}推送：\n")
         if(typ in push_config_dict):
-            for uid, channels in push_config_dict[typ].items():
+            for x, channels in push_config_dict[typ].items():
+                if(type(channels) == dict):
+                    continue
                 if(channel in channels):
-                    reply.append(f"{uid}\n")
+                    reply.append(f"{x}\n")
+    for typ in sub_type_dict.keys():
+        for subtype in sub_type_dict[typ].keys():
+            reply.append(f"{sub_type_dict[typ][subtype]}推送：\n")
+            if(typ in push_config_dict and subtype in push_config_dict[typ]):
+                for x, channels in push_config_dict[typ][subtype].items():
+                    if(channel in channels):
+                        reply.append(f"{x}\n")
     reply[-1] = reply[-1].strip()
     return reply
 
 @cmd((command_dict["disable"]["channel"], ))
 async def disable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel[0], user_id):
+        return None
     global push_config_dict
     if(not "blocked" in push_config_dict):
         push_config_dict["blocked"] = set()
@@ -214,6 +300,8 @@ async def disable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
 
 @cmd((command_dict["enable"]["channel"], ))
 async def enable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel[0], user_id):
+        return None
     global push_config_dict
     if("blocked" in push_config_dict and channel in push_config_dict["blocked"]):
         push_config_dict["blocked"].remove(channel)
@@ -231,7 +319,9 @@ async def receiver(websocket):
     handler_list = [
         get_push_config,
         add_push,
+        add_sub_push,
         remove_push,
+        remove_sub_push,
         get_help,
         disable_push,
         enable_push
@@ -291,11 +381,14 @@ async def build_notify_msg(data) -> list[str]:
         build_dyn_msg,
         build_live_msg
     }
-    for builder in builder_list:
-        resp = await builder(typ, subtype, uid, data)
-        if not resp is None:
-            return resp
-    logger.error(f"接收到无法解析的{type_dict.get(typ, '未知类型')}消息！消息内容：\n{jsons.dumps(data, ensure_ascii=False)}")
+    try:
+        for builder in builder_list:
+            resp = await builder(typ, subtype, uid, data)
+            if not resp is None:
+                return resp
+        logger.error(f"接收到无法解析的{type_dict.get(typ, '未知类型')}消息！消息内容：\n{jsons.dumps(data, ensure_ascii=False)}")
+    except:
+        logger.error(f"解析{type_dict.get(typ, '未知类型')}消息时发生错误！错误消息：\n{traceback.format_exc()}")
 
 async def dispatcher():
     while True: # 断线重连
@@ -315,11 +408,11 @@ async def dispatcher():
                     msg_type = msg["type"]
                     subtype = msg["subtype"]
                     uid = msg["uid"]
-                    if(msg_type in push_config_dict and uid in push_config_dict[msg_type] and push_config_dict[msg_type][uid]):
-                        if(type(push_config_dict[msg_type][uid]) == dict):
-                            push_channel_list = push_config_dict[msg_type][uid][subtype]
+                    if(msg_type in push_config_dict):
+                        if(subtype in push_config_dict[msg_type] and type(push_config_dict[msg_type][subtype]) == dict):
+                            push_channel_list = push_config_dict[msg_type][subtype].get(uid)
                         else:
-                            push_channel_list = push_config_dict[msg_type][uid]
+                            push_channel_list = push_config_dict[msg_type].get(uid)
                         if(push_channel_list):
                             notify_msg = await build_notify_msg(msg)
                             if(notify_msg):

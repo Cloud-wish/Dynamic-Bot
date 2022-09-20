@@ -1,10 +1,31 @@
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import logging
+import json
 from util.bot_command import cmd
 from constant import type_dict
 
 logger = logging.getLogger("dynamic-bot")
+
+uid_to_name_dict = None
+
+try:
+    with open("uid_to_name.json", "r", encoding="UTF-8") as f:
+        uid_to_name_dict = json.loads(f.read())
+except:
+    pass
+
+def data_preprocess(data: dict, typ: str) -> dict:
+    global uid_to_name_dict
+    if("created_time" in data):
+        data["created_time"] = datetime.fromtimestamp(data["created_time"], tz=timezone(timedelta(hours=+8))).strftime("%Y-%m-%d %H:%M:%S")
+    if uid_to_name_dict and "name" in data and typ in uid_to_name_dict and data["uid"] in uid_to_name_dict[typ]:
+        data["name"] = uid_to_name_dict[typ][data["uid"]]
+    if("retweet" in data):
+        data["retweet"] = data_preprocess(data["retweet"], typ)
+    if("reply" in data):
+        data["reply"] = data_preprocess(data["reply"], typ)
+    return data
 
 @cmd(("avatar", ))
 async def avatar_builder(subtype: str, uid: str, data: dict) -> list[str]:
@@ -49,14 +70,27 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
 
 @cmd(("comment", ))
 async def weibo_comment_builder(subtype: str, uid: str, data: dict):
-    # TODO
-    pass
+    content: list[str] = []
+    content.append('[CQ:image,file='+data["avatar"]+']')
+    if("reply" in data):
+        content.append(f"{data['name']}在{data['created_time']}回复了{data['reply']['name']}的微博评论并说：\n")
+    else:
+        content.append(f"{data['name']}在{data['created_time']}发了新微博评论并说：\n")
+    content.append(data['text'] + '\n')
+    for pic_info in data['pics']:
+        content.append('[CQ:image,file='+pic_info+']')
+    content.append('\n')
+    if("reply" in data):
+        content.append(f"原评论：\n{data['reply']['text']}\n")
+        for pic_info in data['reply']['pics']:
+            content.append('[CQ:image,file='+pic_info+']')
+        content.append('\n')
+    content.append(f"原微博地址：{'https://m.weibo.cn/detail/' + data['orig_weibo_id']}")
+    return content
 
 @cmd(("weibo", ))
 async def build_wb_msg(typ: str, subtype: str, uid: str, data: dict):
-    data["created_time"] = datetime.fromtimestamp(data["created_time"], tz=timezone(timedelta(hours=+8))).strftime("%Y-%m-%d %H:%M:%S")
-    if("retweet" in data):
-        data["retweet"]["created_time"] = datetime.fromtimestamp(data["retweet"]["created_time"], tz=timezone(timedelta(hours=+8))).strftime("%Y-%m-%d %H:%M:%S")
+    data = data_preprocess(data, data["type"])
     builder_list = [
         weibo_builder,
         weibo_comment_builder,
@@ -123,14 +157,23 @@ async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 
 @cmd(("comment", ))
 async def dynamic_comment_builder(subtype: str, uid: str, data: dict):
-    # TODO
-    pass
+    content: list[str] = []
+    content.append('[CQ:image,file='+data["avatar"]+']')
+    if("reply" in data):
+        content.append(f"{data['name']}在{data['created_time']}回复了{data['reply']['name']}的动态评论并说：\n")
+    else:
+        content.append(f"{data['name']}在{data['created_time']}发了新动态评论并说：\n")
+    content.append(data['text'] + '\n')
+    content.append('\n')
+    if("reply" in data):
+        content.append(f"原评论：\n{data['reply']['text']}\n")
+        content.append('\n')
+    content.append(f"原动态地址：{'https://t.bilibili.com/' + data['orig_dyn_id']}")
+    return content
 
 @cmd(("bili_dyn", ))
 async def build_dyn_msg(typ: str, subtype: str, uid: str, data: dict):
-    data["created_time"] = datetime.fromtimestamp(data["created_time"], tz=timezone(timedelta(hours=+8))).strftime("%Y-%m-%d %H:%M:%S")
-    if("retweet" in data):
-        data["retweet"]["created_time"] = datetime.fromtimestamp(data["retweet"]["created_time"], tz=timezone(timedelta(hours=+8))).strftime("%Y-%m-%d %H:%M:%S")
+    data = data_preprocess(data, data["type"])
     builder_list = [
         dynamic_builder,
         dynamic_comment_builder,
@@ -163,6 +206,7 @@ async def title_builder(subtype: str, uid: str, data: dict) -> list[str]:
 
 @cmd(("bili_live", ))
 async def build_live_msg(typ: str, subtype: str, uid: str, data: dict):
+    data = data_preprocess(data, data["type"])
     builder_list = [
         status_builder,
         title_builder,

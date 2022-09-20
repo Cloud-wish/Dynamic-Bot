@@ -84,7 +84,7 @@ async def name_builder(subtype: str, uid: str, data: dict) -> list[str]:
 async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     if not pic_enable:
         return None
-    if not (len(data['pics']) >= pic_config_dict["weibo_pics_limit"] or ("retweet" in data and len(data['retweet']['pics']) >= pic_config_dict["weibo_pics_limit"])):
+    if not (len(data.get("pics", [])) >= pic_config_dict["weibo_pics_limit"] or ("retweet" in data and len(data['retweet'].get("pics", [])) >= pic_config_dict["weibo_pics_limit"])):
         if not subtype in push_pic_config_dict.get("weibo", {}):
             return None
         if not uid in push_pic_config_dict["weibo"][subtype] and not push_pic_config_dict["weibo"][subtype] == "all":
@@ -171,7 +171,7 @@ async def build_wb_msg(typ: str, subtype: str, uid: str, data: dict):
 async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     if not pic_enable:
         return None
-    if not (len(data['pics']) >= pic_config_dict["bili_dyn_pics_limit"] or ("retweet" in data and len(data['retweet']['pics']) >= pic_config_dict["bili_dyn_pics_limit"])):
+    if not (len(data.get("pics", [])) >= pic_config_dict["bili_dyn_pics_limit"] or ("retweet" in data and len(data['retweet'].get("pics", [])) >= pic_config_dict["bili_dyn_pics_limit"])):
         if not subtype in push_pic_config_dict.get("bili_dyn", {}):
             return None
         if not uid in push_pic_config_dict["bili_dyn"][subtype] and not push_pic_config_dict["bili_dyn"][subtype] == "all":

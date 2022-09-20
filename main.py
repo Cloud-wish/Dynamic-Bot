@@ -264,7 +264,7 @@ async def remove_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: s
 
 @cmd((command_dict["config"]["channel"], ))
 async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
-    if not await get_user_auth(channel[0], user_id, typ):
+    if not await get_user_auth(channel[0], user_id):
         return None
     reply = ["当前子频道开启的推送如下：\n"]
     for typ in type_dict.keys():

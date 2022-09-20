@@ -1,17 +1,48 @@
 from __future__ import annotations
+import configparser
 from datetime import datetime, timedelta, timezone
 import logging
 import json
+import os
+
 from util.bot_command import cmd
+from util.pic_builder import PicBuilder
+from util.pic_process import modify_pic, save_pic
 from constant import type_dict
 
 logger = logging.getLogger("dynamic-bot")
+cf = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=["#"], comment_prefixes=["#"])
+cf.read(f"config.ini", encoding="UTF-8")
+pic_enable = cf.getboolean("builder", "pic_enable")
+if pic_enable:
+    for name, section in cf.items():
+        if name == "builder":
+            pic_config_dict = dict()
+            for key, value in section.items():
+                try:
+                    value = int(value)
+                except:
+                    pass
+                if(value == "true"):
+                    value = True
+                elif(value == "false"):
+                    value = False
+                pic_config_dict[key] = value
+            pic_config_dict["pic_save_path"] = os.path.abspath(pic_config_dict["pic_save_path"])
+            pic_builder = PicBuilder(pic_config_dict)
+            break
 
 uid_to_name_dict = None
+push_pic_config_dict = None
 
 try:
     with open("uid_to_name.json", "r", encoding="UTF-8") as f:
         uid_to_name_dict = json.loads(f.read())
+except:
+    pass
+try:
+    with open("push_pic_config.json", "r", encoding="UTF-8") as f:
+        push_pic_config_dict = json.loads(f.read())
 except:
     pass
 
@@ -46,6 +77,27 @@ async def name_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
     content.append(f"{data['pre']}更改了{type_dict[data['type']]}用户名：")
     content.append(data["now"])
+    return content
+
+@cmd(("weibo", ))
+async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
+    if not pic_enable:
+        return None
+    if not subtype in push_pic_config_dict.get("weibo", {}):
+        return None
+    if not uid in push_pic_config_dict["weibo"][subtype] and not push_pic_config_dict["weibo"][subtype] == "all":
+        return None
+    content: list[str] = []
+    if("retweet" in data):
+        content.append(f"{data['name']}在{data['created_time']}转发了{data['retweet']['name']}的微博并说：\n")
+    else:
+        content.append(f"{data['name']}在{data['created_time']}发了新微博并说：\n")
+    pic = await pic_builder.get_wb_pic(data["id"], data["created_time"])
+    pic = modify_pic(pic)
+    pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data["uid"], f"{data['id']}.jpeg")
+    save_pic(pic, pic_path)
+    content.append('[CQ:image,file=file:///'+pic_path+']')
+    content.append(f"本条微博地址：{'https://m.weibo.cn/detail/' + data['id']}")
     return content
 
 @cmd(("weibo", ))
@@ -92,6 +144,7 @@ async def weibo_comment_builder(subtype: str, uid: str, data: dict):
 async def build_wb_msg(typ: str, subtype: str, uid: str, data: dict):
     data = data_preprocess(data, data["type"])
     builder_list = [
+        weibo_pic_builder,
         weibo_builder,
         weibo_comment_builder,
         avatar_builder,
@@ -102,6 +155,47 @@ async def build_wb_msg(typ: str, subtype: str, uid: str, data: dict):
         resp = await builder(subtype, uid, data)
         if not resp is None:
             return resp
+
+@cmd(("dynamic", ))
+async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
+    if not pic_enable:
+        return None
+    if not subtype in push_pic_config_dict.get("bili_dyn", {}):
+        return None
+    if not uid in push_pic_config_dict["bili_dyn"][subtype] and not push_pic_config_dict["bili_dyn"][subtype] == "all":
+        return None
+    name = data["name"]
+    content: list[str] = list()
+    if not data.get("is_retweet", False):
+        content.append(f"{name}在{data['created_time']}")
+        if data["dyn_type"] == 8:
+            content.append("发了新视频：\n")
+        elif data["dyn_type"] == 64:
+            content.append("发了新文章：\n")
+        elif data["dyn_type"] == 1:
+            content.append(f"转发了{data['retweet']['name']}的")
+            if data["retweet"]["dyn_type"] == 8:
+                content.append("视频：\n")
+            elif data["retweet"]["dyn_type"] == 64:
+                content.append("文章：\n")
+            else:
+                content.append("动态：\n")
+        else:
+            content.append("发了新动态并说：\n")
+    pic = await pic_builder.get_bili_dyn_pic(data["id"], data["created_time"])
+    pic = modify_pic(pic)
+    pic_path = os.path.join(pic_config_dict["pic_save_path"], "bili_dyn", subtype, data["uid"], f"{data['id']}.jpeg")
+    save_pic(pic, pic_path)
+    content.append('[CQ:image,file=file:///'+pic_path+']')
+    if not data.get("is_retweet", False):
+        if data["dyn_type"] == 8:
+            content.append("视频链接：\n")
+        elif data["dyn_type"] == 64:
+            content.append("文章链接：\n")
+        else:
+            content.append("动态链接：\n")
+        content.append(f"{data['link_prefix']}{data['id']}")
+    return content
 
 @cmd(("dynamic", ))
 async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
@@ -175,6 +269,7 @@ async def dynamic_comment_builder(subtype: str, uid: str, data: dict):
 async def build_dyn_msg(typ: str, subtype: str, uid: str, data: dict):
     data = data_preprocess(data, data["type"])
     builder_list = [
+        dynamic_pic_builder,
         dynamic_builder,
         dynamic_comment_builder,
         avatar_builder,

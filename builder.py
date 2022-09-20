@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import json
 import os
+import traceback
 
 from util.bot_command import cmd
 from util.pic_builder import PicBuilder
@@ -83,16 +84,26 @@ async def name_builder(subtype: str, uid: str, data: dict) -> list[str]:
 async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     if not pic_enable:
         return None
-    if not subtype in push_pic_config_dict.get("weibo", {}):
-        return None
-    if not uid in push_pic_config_dict["weibo"][subtype] and not push_pic_config_dict["weibo"][subtype] == "all":
-        return None
+    if not (len(data['pics']) >= pic_config_dict["weibo_pics_limit"] or ("retweet" in data and len(data['retweet']['pics']) >= pic_config_dict["weibo_pics_limit"])):
+        if not subtype in push_pic_config_dict.get("weibo", {}):
+            return None
+        if not uid in push_pic_config_dict["weibo"][subtype] and not push_pic_config_dict["weibo"][subtype] == "all":
+            return None
     content: list[str] = []
     if("retweet" in data):
         content.append(f"{data['name']}在{data['created_time']}转发了{data['retweet']['name']}的微博并说：\n")
     else:
         content.append(f"{data['name']}在{data['created_time']}发了新微博并说：\n")
-    pic = await pic_builder.get_wb_pic(data["id"], data["created_time"])
+    for i in range(3):
+        try:
+            pic = await pic_builder.get_wb_pic(data["id"], data["created_time"])
+            break
+        except:
+            if i == 2:
+                errmsg = traceback.format_exc()
+                logger.error(f"生成微博图片发生错误！错误信息：\n{errmsg}")
+                return None
+            pass
     pic = modify_pic(pic)
     pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data["uid"], f"{data['id']}.jpeg")
     save_pic(pic, pic_path)
@@ -160,10 +171,11 @@ async def build_wb_msg(typ: str, subtype: str, uid: str, data: dict):
 async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     if not pic_enable:
         return None
-    if not subtype in push_pic_config_dict.get("bili_dyn", {}):
-        return None
-    if not uid in push_pic_config_dict["bili_dyn"][subtype] and not push_pic_config_dict["bili_dyn"][subtype] == "all":
-        return None
+    if not (len(data['pics']) >= pic_config_dict["bili_dyn_pics_limit"] or ("retweet" in data and len(data['retweet']['pics']) >= pic_config_dict["bili_dyn_pics_limit"])):
+        if not subtype in push_pic_config_dict.get("bili_dyn", {}):
+            return None
+        if not uid in push_pic_config_dict["bili_dyn"][subtype] and not push_pic_config_dict["bili_dyn"][subtype] == "all":
+            return None
     name = data["name"]
     content: list[str] = list()
     if not data.get("is_retweet", False):
@@ -182,7 +194,16 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
                 content.append("动态：\n")
         else:
             content.append("发了新动态并说：\n")
-    pic = await pic_builder.get_bili_dyn_pic(data["id"], data["created_time"])
+    for i in range(3):
+        try:
+            pic = await pic_builder.get_bili_dyn_pic(data["id"], data["created_time"])
+            break
+        except:
+            if i == 2:
+                errmsg = traceback.format_exc()
+                logger.error(f"生成B站动态图片发生错误！错误信息：\n{errmsg}")
+                return None
+            pass
     pic = modify_pic(pic)
     pic_path = os.path.join(pic_config_dict["pic_save_path"], "bili_dyn", subtype, data["uid"], f"{data['id']}.jpeg")
     save_pic(pic, pic_path)

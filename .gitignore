@@ -157,3 +157,4 @@ config.ini
 /local_pic/
 msg_para
 /pics/
+test*.py

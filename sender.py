@@ -18,6 +18,7 @@ logger: logging.Logger = init_logger(log_path)
 cf = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=["#"], comment_prefixes=["#"])
 cf.read(f"config.ini", encoding="UTF-8")
 http_url = cf.get("cqhttp", "http_url")
+debug_enable = cf.getboolean("sender", "debug")
 local_pic_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local_pic")
 
 def send_guild_channel_msg(message):
@@ -28,6 +29,9 @@ def send_message():
     with open("msg_para", "r", encoding="UTF-8") as f:
         message = json.loads(f.read())
         message['message'] = "".join(message['data'])
+    if debug_enable:
+        logger.debug(f"已开启Debug模式，消息内容：\n{json.dumps(message, ensure_ascii=False)}")
+        os._exit(0)
     try:
         response = send_guild_channel_msg(message)
         logger.debug(f"成功发送消息请求，返回值：{response.text}")

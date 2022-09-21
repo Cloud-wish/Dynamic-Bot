@@ -1,5 +1,6 @@
 from __future__ import annotations
 import configparser
+import copy
 from datetime import datetime, timedelta, timezone
 import logging
 import json
@@ -10,6 +11,9 @@ from util.bot_command import cmd
 from util.pic_builder import PicBuilder
 from util.pic_process import modify_pic, save_pic
 from constant import type_dict
+
+_type_dict = copy.deepcopy(type_dict)
+_type_dict["bili_dyn"] = "B站"
 
 logger = logging.getLogger("dynamic-bot")
 cf = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=["#"], comment_prefixes=["#"])
@@ -62,21 +66,21 @@ def data_preprocess(data: dict, typ: str) -> dict:
 @cmd(("avatar", ))
 async def avatar_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
-    content.append(f"{data['name']}更换了{type_dict[data['type']]}头像：\n")
+    content.append(f"{data['name']}更换了{_type_dict[data['type']]}头像：\n")
     content.append('[CQ:image,file='+data["now"]+']')
     return content
 
 @cmd(("desc", ))
 async def desc_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
-    content.append(f"{data['name']}更改了{type_dict[data['type']]}简介：\n")
+    content.append(f"{data['name']}更改了{_type_dict[data['type']]}简介：\n")
     content.append(data["now"])
     return content
 
 @cmd(("name", ))
 async def name_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
-    content.append(f"{data['pre']}更改了{type_dict[data['type']]}用户名：")
+    content.append(f"{data['pre']}更改了{_type_dict[data['type']]}用户名：")
     content.append(data["now"])
     return content
 
@@ -108,7 +112,7 @@ async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data["uid"], f"{data['id']}.jpeg")
     save_pic(pic, pic_path)
     content.append('[CQ:image,file=file:///'+pic_path+']')
-    content.append(f"本条微博地址：{'https://m.weibo.cn/detail/' + data['id']}")
+    content.append(f"微博链接：{'https://m.weibo.cn/detail/' + data['id']}")
     return content
 
 @cmd(("weibo", ))
@@ -128,13 +132,13 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
         for pic_info in data['retweet']['pics']:
             content.append('[CQ:image,file='+pic_info+']')
         content.append('\n')
-    content.append(f"本条微博地址：{'https://m.weibo.cn/detail/' + data['id']}")
+    content.append(f"微博链接：{'https://m.weibo.cn/detail/' + data['id']}")
     return content
 
 @cmd(("comment", ))
 async def weibo_comment_builder(subtype: str, uid: str, data: dict):
     content: list[str] = []
-    content.append('[CQ:image,file='+data["avatar"]+']')
+    # content.append('[CQ:image,file='+data["avatar"]+']')
     if("reply" in data):
         content.append(f"{data['name']}在{data['created_time']}回复了{data['reply']['name']}的微博评论并说：\n")
     else:
@@ -148,7 +152,7 @@ async def weibo_comment_builder(subtype: str, uid: str, data: dict):
         for pic_info in data['reply']['pics']:
             content.append('[CQ:image,file='+pic_info+']')
         content.append('\n')
-    content.append(f"原微博地址：{'https://m.weibo.cn/detail/' + data['orig_weibo_id']}")
+    content.append(f"原微博链接：{'https://m.weibo.cn/detail/' + data['orig_weibo_id']}")
     return content
 
 @cmd(("weibo", ))
@@ -274,7 +278,7 @@ async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 @cmd(("comment", ))
 async def dynamic_comment_builder(subtype: str, uid: str, data: dict):
     content: list[str] = []
-    content.append('[CQ:image,file='+data["avatar"]+']')
+    # content.append('[CQ:image,file='+data["avatar"]+']')
     if("reply" in data):
         content.append(f"{data['name']}在{data['created_time']}回复了{data['reply']['name']}的动态评论并说：\n")
     else:
@@ -284,7 +288,7 @@ async def dynamic_comment_builder(subtype: str, uid: str, data: dict):
     if("reply" in data):
         content.append(f"原评论：\n{data['reply']['text']}\n")
         content.append('\n')
-    content.append(f"原动态地址：{'https://t.bilibili.com/' + data['orig_dyn_id']}")
+    content.append(f"原动态链接：{'https://t.bilibili.com/' + data['orig_dyn_id']}")
     return content
 
 @cmd(("bili_dyn", ))

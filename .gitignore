@@ -151,7 +151,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-config.ini
+!config_sample.ini
+config*.ini
 *.json
 /logs/
 /local_pic/

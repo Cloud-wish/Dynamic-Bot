@@ -327,17 +327,18 @@ async def receiver(websocket):
         enable_push
     ]
     ws_relay_conn = None
-    logger.error(f"成功建立与cqhttp的Websocket连接")
+    logger.info(f"成功建立与cqhttp的Websocket连接")
     try:
         async for message in websocket:
             if(config_dict["cqhttp"]["ws_relay_enable"]):
                 for i in range(config_dict["cqhttp"]["ws_relay_reconnect_count"] + 1):
                     try:
                         if(ws_relay_conn is None):
-                            ws_relay_conn = websockets.connect(config_dict["cqhttp"]["ws_relay_url"])
+                            ws_relay_conn = await websockets.connect(config_dict["cqhttp"]["ws_relay_url"])
                             logger.info(f"成功建立与转发消息接收端的Websocket连接")
                         await ws_relay_conn.send(message)
-                        logger.debug(f"向转发消息接收端发送了一条消息：{message}")
+                        break
+                        # logger.debug(f"向转发消息接收端发送了一条消息：{message}")
                     except Exception as e:
                         logger.error(f"与转发消息接收端的Websocket连接出错！错误信息：\n{str(e)}")
                         if(i < config_dict["cqhttp"]["ws_relay_reconnect_count"]):
@@ -422,6 +423,7 @@ async def dispatcher():
                                         put_guild_channel_msg(channel[0], channel[1], notify_msg)
         except Exception as e:
             logger.error(f"与Crawler的Websocket连接出错！错误信息：\n{traceback.format_exc()}\n尝试重连...")
+            await asyncio.sleep(1)
 
 def msg_sender():
     global msg_queue

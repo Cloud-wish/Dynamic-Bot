@@ -88,11 +88,13 @@ async def name_builder(subtype: str, uid: str, data: dict) -> list[str]:
 async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     if not pic_enable:
         return None
+    push_dict = push_pic_config_dict.get(data["type"], {}).get(subtype, {})
     if not (len(data.get("pics", [])) >= pic_config_dict["weibo_pics_limit"] or ("retweet" in data and len(data['retweet'].get("pics", [])) >= pic_config_dict["weibo_pics_limit"])):
-        if not subtype in push_pic_config_dict.get("weibo", {}):
+        if not (uid in push_dict.get("enable", []) or push_dict.get("enable", "") == "all"):
             return None
-        if not uid in push_pic_config_dict["weibo"][subtype] and not push_pic_config_dict["weibo"][subtype] == "all":
-            return None
+    elif uid in push_dict.get("disable", []) or push_dict.get("disable", "") == "all":
+        return None
+
     content: list[str] = []
     if("retweet" in data):
         content.append(f"{data['name']}在{data['created_time']}转发了{data['retweet']['name']}的微博并说：\n")
@@ -175,11 +177,13 @@ async def build_wb_msg(typ: str, subtype: str, uid: str, data: dict):
 async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     if not pic_enable:
         return None
+    push_dict = push_pic_config_dict.get(data["type"], {}).get(subtype, {})
     if not (len(data.get("pics", [])) >= pic_config_dict["bili_dyn_pics_limit"] or ("retweet" in data and len(data['retweet'].get("pics", [])) >= pic_config_dict["bili_dyn_pics_limit"])):
-        if not subtype in push_pic_config_dict.get("bili_dyn", {}):
+        if not (uid in push_dict.get("enable", []) or push_dict.get("enable", "") == "all"):
             return None
-        if not uid in push_pic_config_dict["bili_dyn"][subtype] and not push_pic_config_dict["bili_dyn"][subtype] == "all":
-            return None
+    elif uid in push_dict.get("disable", []) or push_dict.get("disable", "") == "all":
+        return None
+
     name = data["name"]
     content: list[str] = list()
     if not data.get("is_retweet", False):
@@ -219,7 +223,7 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
             content.append("文章链接：\n")
         else:
             content.append("动态链接：\n")
-        content.append(f"{data['link_prefix']}{data['id']}")
+        content.append(f"{data['link']}")
     return content
 
 @cmd(("dynamic", ))
@@ -272,7 +276,7 @@ async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
             content.append("文章链接：\n")
         else:
             content.append("动态链接：\n")
-        content.append(f"{data['link_prefix']}{data['id']}")
+        content.append(f"{data['link']}")
     return content
 
 @cmd(("comment", ))
@@ -311,9 +315,10 @@ async def build_dyn_msg(typ: str, subtype: str, uid: str, data: dict):
 async def status_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = list()
     if(data['now'] == "1"):
-        content.append(f"{data['name']}开播啦！\n")
-        content.append(f"直播间标题：\n{data['title']}\n")
-        content.append(f"链接：https://live.bilibili.com/{data['room_id']}")
+        content.append(f"{data['name']}开播啦！")
+        content.append(f"标题：\n{data['title']}\n")
+        content.append('[CQ:image,file='+data['cover']+']')
+        content.append(f"\n链接：https://live.bilibili.com/{data['room_id']}")
     elif(data['pre'] == "1"):
         content.append(f"{data['name']}下播了")
     return content
@@ -325,12 +330,20 @@ async def title_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content.append(data["now"])
     return content
 
+@cmd(("cover",))
+async def cover_builder(subtype: str, uid: str, data: dict) -> list[str]:
+    content: list[str] = list()
+    content.append(f"{data['name']}更改了直播间封面：\n")
+    content.append('[CQ:image,file='+data['now']+']')
+    return content
+
 @cmd(("bili_live", ))
 async def build_live_msg(typ: str, subtype: str, uid: str, data: dict):
     data = data_preprocess(data, data["type"])
     builder_list = [
         status_builder,
         title_builder,
+        cover_builder
     ]
     for builder in builder_list:
         resp = await builder(subtype, uid, data)

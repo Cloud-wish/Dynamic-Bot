@@ -119,7 +119,7 @@ for(i=0;i<elements.length;i++) {
         page = await context.new_page()
         await page.set_viewport_size({'width':560, 'height':3500})
         await page.goto('https://m.bilibili.com/dynamic/'+dynamic_id, wait_until="networkidle", timeout=15000)
-        await page.evaluate('document.getElementsByClassName("m-dynamic-float-openapp")[0].style.display = "none"')
+        await page.evaluate('document.getElementsByClassName("dynamic-float-btn")[0].style.display = "none"')
         try:
             await page.evaluate('document.getElementsByClassName("dyn-header__following")[0].style.display = "none"')
         except:

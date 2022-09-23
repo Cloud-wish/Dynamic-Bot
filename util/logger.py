@@ -5,7 +5,7 @@ from logging.handlers import TimedRotatingFileHandler
 
 logger: logging.Logger = None
 LOGGER_NAME = "dynamic-bot"
-LOGGER_PRINT_FORMAT = "\033[1;33m[%(levelname)s] (%(filename)s:%(lineno)s) %(funcName)s:\033[0m\n%(message)s"
+LOGGER_PRINT_FORMAT = "\033[1;33m%(asctime)s [%(levelname)s] (%(filename)s:%(lineno)s) %(funcName)s:\033[0m\n%(message)s"
 LOGGER_FILE_FORMAT = "%(asctime)s [%(levelname)s] (%(filename)s:%(lineno)s) %(funcName)s:\n%(message)s"
 logging.basicConfig(format=LOGGER_PRINT_FORMAT)
 

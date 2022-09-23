@@ -19,14 +19,14 @@ def cmd(*cmd_list):
                     para_num = func.__code__.co_argcount - (len(typs) + len(args))
                     # print(cmd_str, typs, paras, para_num)
                     if(len(paras) != para_num):
-                        logger.info(f"收到指令：{cmd_str}，类型：{typs}，参数个数错误，应为{para_num}，传入参数：{paras}")
+                        logger.info(f"{func.__name__} 收到指令：{cmd_str}，类型：{typs}，参数个数错误，应为{para_num}，传入参数：{paras}")
                         return "参数个数错误！"
                     else:
-                        logger.info(f"收到指令：{cmd_str}，类型：{typs}，传入参数：{paras}")
+                        logger.info(f"{func.__name__} 收到指令：{cmd_str}，类型：{typs}，传入参数：{paras}")
                         args = args[1:len(args)]
                         # print(typs, paras, args)
                         return await func(cmd_str, *(typs+paras+args))
-                logger.debug(f"指令未找到，原始消息：{msg}，指令：{cmd_str}")
+                logger.debug(f"{func.__name__} 指令未找到，原始消息：{msg}，指令：{cmd_str}")
             return None
         return wrapper
     return decorator

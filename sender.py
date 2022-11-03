@@ -18,6 +18,8 @@ logger: logging.Logger = init_logger(log_path)
 cf = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=["#"], comment_prefixes=["#"])
 cf.read(f"config.ini", encoding="UTF-8")
 http_url = cf.get("cqhttp", "http_url")
+if http_url.endswith('/'):
+    http_url = http_url[0:len(http_url):]
 debug_enable = cf.getboolean("sender", "debug")
 local_pic_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local_pic")
 

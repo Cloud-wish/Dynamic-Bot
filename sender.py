@@ -39,7 +39,7 @@ def send_message():
         logger.debug(f"成功发送消息请求，返回值：{response.text}")
         return json.loads(response.text)
     except Exception as e:
-        logger.error(f"发送消息失败，错误信息：{str(e)}\n消息内容：\n{json.dumps(message, ensure_ascii=False)}")
+        logger.error(f"消息发送失败，错误信息：{str(e)}\n消息内容：\n{json.dumps(message, ensure_ascii=False)}")
         os._exit(-1)
 
 def is_success(response):
@@ -99,14 +99,21 @@ if __name__ == '__main__':
     cnt = 1
     response = send_message()
     while(cnt < 3 and (not is_success(response))):
-        time.sleep(0.03)
+        time.sleep(0.05)
         response = send_message()
         cnt = cnt + 1
     if response['retcode'] == 0 and response['data']['message_id'].startswith('0-'):
         process_pic()
-        cnt = 1
         response = send_message()
-        while(cnt < 3 and (not is_success(response))):
-            time.sleep(0.03)
+        while(cnt < 6 and (not is_success(response))):
+            time.sleep(0.05)
             response = send_message()
             cnt = cnt + 1
+    if cnt != 1:
+        if is_success(response):
+            logger.info(f"消息发送成功")
+        else:
+            with open("msg_para", "r", encoding="UTF-8") as f:
+                message = json.loads(f.read())
+                message['message'] = "".join(message['data'])
+            logger.error(f"消息发送失败，code：{response['retcode']} 错误信息：{response['msg']} {response.get('wording', '')}\n消息内容：\n{json.dumps(message, ensure_ascii=False)}")

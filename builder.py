@@ -38,7 +38,7 @@ if pic_enable:
             break
 
 uid_to_name_dict = None
-push_pic_config_dict = None
+push_pic_config_dict = {}
 
 try:
     with open("uid_to_name.json", "r", encoding="UTF-8") as f:

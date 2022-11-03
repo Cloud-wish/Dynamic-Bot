@@ -46,6 +46,7 @@ def is_success(response):
     if(response['retcode'] == 0):
         return not response['data']['message_id'].startswith('0-')
     else:
+        logger.error(f"消息发送失败，code：{response['retcode']} 错误信息：{response['msg']} {response.get('wording', '')}")
         return False
 
 def replace_pic(matched: re.Match):

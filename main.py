@@ -1,5 +1,7 @@
 from __future__ import annotations
 import configparser
+import random
+import time
 import jsons
 import threading
 import queue
@@ -376,7 +378,7 @@ async def receiver(websocket):
 async def build_notify_msg(data) -> list[str]:
     typ = data["type"]
     subtype = data["subtype"]
-    uid = data["uid"]
+    uid = data["user"]["uid"]
     builder_list = {
         build_wb_msg,
         build_dyn_msg,
@@ -408,7 +410,7 @@ async def dispatcher():
                     logger.debug(f"与Crawler的Websocket连接接收到推送消息，内容如下：\n{jsons.dumps(msg, ensure_ascii=False)}")
                     msg_type = msg["type"]
                     subtype = msg["subtype"]
-                    uid = msg["uid"]
+                    uid = msg["user"]["uid"]
                     if(msg_type in push_config_dict):
                         if(subtype in push_config_dict[msg_type] and type(push_config_dict[msg_type][subtype]) == dict):
                             push_channel_list = push_config_dict[msg_type][subtype].get(uid)
@@ -432,6 +434,7 @@ def msg_sender():
         msg_queue.task_done()
         logger.debug(f"消息发送线程接收到要发送到频道{msg['guild_id']}的子频道{msg['channel_id']}的消息：\n{''.join(msg['data'])}")
         send_guild_msg(msg)
+        time.sleep(random.random() + 1)
 
 def main():
     load_config()

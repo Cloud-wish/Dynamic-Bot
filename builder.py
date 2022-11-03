@@ -53,10 +53,12 @@ except:
 
 def data_preprocess(data: dict, typ: str) -> dict:
     global uid_to_name_dict
-    if("created_time" in data):
+    if("created_time" in data and type(data["created_time"]) == int):
         data["created_time"] = datetime.fromtimestamp(data["created_time"], tz=timezone(timedelta(hours=+8))).strftime("%Y-%m-%d %H:%M:%S")
-    if uid_to_name_dict and "name" in data and typ in uid_to_name_dict and data["uid"] in uid_to_name_dict[typ]:
-        data["name"] = uid_to_name_dict[typ][data["uid"]]
+    if uid_to_name_dict:
+        user = data.get("user", {})
+        if "name" in user and user.get("uid", "") in uid_to_name_dict[typ]:
+            data["user"]["name"] = uid_to_name_dict[typ][data["user"]["uid"]]
     if("retweet" in data):
         data["retweet"] = data_preprocess(data["retweet"], typ)
     if("reply" in data):
@@ -66,14 +68,14 @@ def data_preprocess(data: dict, typ: str) -> dict:
 @cmd(("avatar", ))
 async def avatar_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
-    content.append(f"{data['name']}更换了{_type_dict[data['type']]}头像：\n")
+    content.append(f"{data['user']['name']}更换了{_type_dict[data['type']]}头像：\n")
     content.append('[CQ:image,file='+data["now"]+']')
     return content
 
 @cmd(("desc", ))
 async def desc_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
-    content.append(f"{data['name']}更改了{_type_dict[data['type']]}简介：\n")
+    content.append(f"{data['user']['name']}更改了{_type_dict[data['type']]}简介：\n")
     content.append(data["now"])
     return content
 
@@ -97,9 +99,9 @@ async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 
     content: list[str] = []
     if("retweet" in data):
-        content.append(f"{data['name']}在{data['created_time']}转发了{data['retweet']['name']}的微博并说：\n")
+        content.append(f"{data['user']['name']}在{data['created_time']}转发了{data['retweet']['user']['name']}的微博并说：\n")
     else:
-        content.append(f"{data['name']}在{data['created_time']}发了新微博并说：\n")
+        content.append(f"{data['user']['name']}在{data['created_time']}发了新微博并说：\n")
     for i in range(3):
         try:
             pic = await pic_builder.get_wb_pic(data["id"], data["created_time"])
@@ -111,7 +113,7 @@ async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
                 return None
             pass
     pic = modify_pic(pic)
-    pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data["uid"], f"{data['id']}.jpeg")
+    pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, uid, f"{data['id']}.jpeg")
     save_pic(pic, pic_path)
     content.append('[CQ:image,file=file:///'+pic_path+']')
     content.append(f"微博链接：{'https://m.weibo.cn/detail/' + data['id']}")
@@ -120,11 +122,11 @@ async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 @cmd(("weibo", ))
 async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
-    content.append('[CQ:image,file='+data["avatar"]+']')
+    content.append('[CQ:image,file='+data["user"]["avatar"]+']')
     if("retweet" in data):
-        content.append(f"{data['name']}在{data['created_time']}转发了{data['retweet']['name']}的微博并说：\n")
+        content.append(f"{data['user']['name']}在{data['created_time']}转发了{data['retweet']['user']['name']}的微博并说：\n")
     else:
-        content.append(f"{data['name']}在{data['created_time']}发了新微博并说：\n")
+        content.append(f"{data['user']['name']}在{data['created_time']}发了新微博并说：\n")
     content.append(data['text'] + '\n')
     for pic_info in data['pics']:
         content.append('[CQ:image,file='+pic_info+']')
@@ -140,11 +142,11 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
 @cmd(("comment", ))
 async def weibo_comment_builder(subtype: str, uid: str, data: dict):
     content: list[str] = []
-    # content.append('[CQ:image,file='+data["avatar"]+']')
+    # content.append('[CQ:image,file='+data["user"]["avatar"]+']')
     if("reply" in data):
-        content.append(f"{data['name']}在{data['created_time']}回复了{data['reply']['name']}的微博评论并说：\n")
+        content.append(f"{data['user']['name']}在{data['created_time']}回复了{data['reply']['user']['name']}的微博评论并说：\n")
     else:
-        content.append(f"{data['name']}在{data['created_time']}发了新微博评论并说：\n")
+        content.append(f"{data['user']['name']}在{data['created_time']}发了新微博评论并说：\n")
     content.append(data['text'] + '\n')
     for pic_info in data['pics']:
         content.append('[CQ:image,file='+pic_info+']')
@@ -154,7 +156,7 @@ async def weibo_comment_builder(subtype: str, uid: str, data: dict):
         for pic_info in data['reply']['pics']:
             content.append('[CQ:image,file='+pic_info+']')
         content.append('\n')
-    content.append(f"原微博链接：{'https://m.weibo.cn/detail/' + data['orig_weibo_id']}")
+    content.append(f"原微博链接：{'https://m.weibo.cn/detail/' + data['root']['id']}")
     return content
 
 @cmd(("weibo", ))
@@ -184,7 +186,7 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     elif uid in push_dict.get("disable", []) or push_dict.get("disable", "") == "all":
         return None
 
-    name = data["name"]
+    name = data["user"]["name"]
     content: list[str] = list()
     if not data.get("is_retweet", False):
         content.append(f"{name}在{data['created_time']}")
@@ -193,7 +195,7 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
         elif data["dyn_type"] == 64:
             content.append("发了新文章：\n")
         elif data["dyn_type"] == 1:
-            content.append(f"转发了{data['retweet']['name']}的")
+            content.append(f"转发了{data['retweet']['user']['name']}的")
             if data["retweet"]["dyn_type"] == 8:
                 content.append("视频：\n")
             elif data["retweet"]["dyn_type"] == 64:
@@ -213,7 +215,7 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
                 return None
             pass
     pic = modify_pic(pic)
-    pic_path = os.path.join(pic_config_dict["pic_save_path"], "bili_dyn", subtype, data["uid"], f"{data['id']}.jpeg")
+    pic_path = os.path.join(pic_config_dict["pic_save_path"], "bili_dyn", subtype, uid, f"{data['id']}.jpeg")
     save_pic(pic, pic_path)
     content.append('[CQ:image,file=file:///'+pic_path+']')
     if not data.get("is_retweet", False):
@@ -228,9 +230,9 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 
 @cmd(("dynamic", ))
 async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
-    name = data["name"]
+    name = data["user"]["name"]
     content: list[str] = list()
-    content.append('[CQ:image,file='+data["avatar"]+']')
+    content.append('[CQ:image,file='+data["user"]["avatar"]+']')
     if not data.get("is_retweet", False):
         content.append(f"{name}在{data['created_time']}")
         if data["dyn_type"] == 8:
@@ -238,7 +240,7 @@ async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
         elif data["dyn_type"] == 64:
             content.append("发了新文章：\n")
         elif data["dyn_type"] == 1:
-            content.append(f"转发了{data['retweet']['name']}的")
+            content.append(f"转发了{data['retweet']['user']['name']}的")
             if data["retweet"]["dyn_type"] == 8:
                 content.append("视频：\n")
             elif data["retweet"]["dyn_type"] == 64:
@@ -282,17 +284,17 @@ async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 @cmd(("comment", ))
 async def dynamic_comment_builder(subtype: str, uid: str, data: dict):
     content: list[str] = []
-    # content.append('[CQ:image,file='+data["avatar"]+']')
+    # content.append('[CQ:image,file='+data["user"]["avatar"]+']')
     if("reply" in data):
-        content.append(f"{data['name']}在{data['created_time']}回复了{data['reply']['name']}的动态评论并说：\n")
+        content.append(f"{data['user']['name']}在{data['created_time']}回复了{data['reply']['user']['name']}的动态评论并说：\n")
     else:
-        content.append(f"{data['name']}在{data['created_time']}发了新动态评论并说：\n")
+        content.append(f"{data['user']['name']}在{data['created_time']}发了新动态评论并说：\n")
     content.append(data['text'] + '\n')
     content.append('\n')
     if("reply" in data):
         content.append(f"原评论：\n{data['reply']['text']}\n")
         content.append('\n')
-    content.append(f"原动态链接：{'https://t.bilibili.com/' + data['orig_dyn_id']}")
+    content.append(f"原动态链接：{'https://t.bilibili.com/' + data['root']['id']}")
     return content
 
 @cmd(("bili_dyn", ))
@@ -315,25 +317,26 @@ async def build_dyn_msg(typ: str, subtype: str, uid: str, data: dict):
 async def status_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = list()
     if(data['now'] == "1"):
-        content.append(f"{data['name']}开播啦！")
-        content.append(f"标题：\n{data['title']}\n")
-        content.append('[CQ:image,file='+data['cover']+']')
-        content.append(f"\n链接：https://live.bilibili.com/{data['room_id']}")
+        content.append(f"{data['user']['name']}开播啦！")
+        content.append(f"标题：\n{data['user']['title']}\n")
+        if data['user']['cover']:
+            content.append('[CQ:image,file='+data['user']['cover']+']\n')
+        content.append(f"链接：https://live.bilibili.com/{data['user']['room_id']}")
     elif(data['pre'] == "1"):
-        content.append(f"{data['name']}下播了")
+        content.append(f"{data['user']['name']}下播了")
     return content
 
 @cmd(("title",))
 async def title_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = list()
-    content.append(f"{data['name']}更改了直播间标题：\n")
+    content.append(f"{data['user']['name']}更改了直播间标题：\n")
     content.append(data["now"])
     return content
 
 @cmd(("cover",))
 async def cover_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = list()
-    content.append(f"{data['name']}更改了直播间封面：\n")
+    content.append(f"{data['user']['name']}更改了直播间封面：\n")
     content.append('[CQ:image,file='+data['now']+']')
     return content
 

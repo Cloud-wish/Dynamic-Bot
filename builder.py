@@ -57,8 +57,11 @@ def data_preprocess(data: dict, typ: str) -> dict:
         data["created_time"] = datetime.fromtimestamp(data["created_time"], tz=timezone(timedelta(hours=+8))).strftime("%Y-%m-%d %H:%M:%S")
     if uid_to_name_dict:
         user = data.get("user", {})
-        if "name" in user and user.get("uid", "") in uid_to_name_dict[typ]:
-            data["user"]["name"] = uid_to_name_dict[typ][data["user"]["uid"]]
+        if "name" in user:
+            if user.get("uid", "") in uid_to_name_dict[typ]:
+                data["user"]["name"] = uid_to_name_dict[typ][data["user"]["uid"]]
+        else:
+            data["user"]["name"] = "[未知用户名]"
     if("retweet" in data):
         data["retweet"] = data_preprocess(data["retweet"], typ)
     if("reply" in data):
@@ -122,7 +125,8 @@ async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 @cmd(("weibo", ))
 async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
-    content.append('[CQ:image,file='+data["user"]["avatar"]+']')
+    if data["user"].get("avatar"):
+        content.append('[CQ:image,file='+data["user"]["avatar"]+']')
     if("retweet" in data):
         content.append(f"{data['user']['name']}在{data['created_time']}转发了{data['retweet']['user']['name']}的微博并说：\n")
     else:
@@ -232,7 +236,8 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 async def dynamic_builder(subtype: str, uid: str, data: dict) -> list[str]:
     name = data["user"]["name"]
     content: list[str] = list()
-    content.append('[CQ:image,file='+data["user"]["avatar"]+']')
+    if data["user"].get("avatar"):
+        content.append('[CQ:image,file='+data["user"]["avatar"]+']')
     if not data.get("is_retweet", False):
         content.append(f"{name}在{data['created_time']}")
         if data["dyn_type"] == 8:

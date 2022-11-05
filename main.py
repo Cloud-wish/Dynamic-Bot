@@ -379,6 +379,9 @@ async def build_notify_msg(data) -> list[str]:
     typ = data["type"]
     subtype = data["subtype"]
     uid = data["user"]["uid"]
+    if not uid:
+        logger.error(f"接收到无UID的{type_dict.get(typ, '未知类型')}消息！消息内容：\n{data}")
+        return None
     builder_list = {
         build_wb_msg,
         build_dyn_msg,
@@ -389,7 +392,7 @@ async def build_notify_msg(data) -> list[str]:
             resp = await builder(typ, subtype, uid, data)
             if not resp is None:
                 return resp
-        logger.error(f"接收到无法解析的{type_dict.get(typ, '未知类型')}消息！消息内容：\n{jsons.dumps(data, ensure_ascii=False)}")
+        logger.error(f"接收到无法解析的{type_dict.get(typ, '未知类型')}消息！消息内容：\n{data}")
     except:
         logger.error(f"解析{type_dict.get(typ, '未知类型')}消息时发生错误！错误消息：\n{traceback.format_exc()}")
 
@@ -411,6 +414,9 @@ async def dispatcher():
                     msg_type = msg["type"]
                     subtype = msg["subtype"]
                     uid = msg["user"]["uid"]
+                    if not uid:
+                        logger.error(f"接收到无UID的{type_dict.get(msg_type, '未知类型')}消息！消息内容：\n{msg}")
+                        continue
                     if(msg_type in push_config_dict):
                         if(subtype in push_config_dict[msg_type] and type(push_config_dict[msg_type][subtype]) == dict):
                             push_channel_list = push_config_dict[msg_type][subtype].get(uid)

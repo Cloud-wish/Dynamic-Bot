@@ -154,14 +154,22 @@ async def remove_crawler(uid: str, typ: str, subtype: str = None) -> bool:
 async def get_user_auth(guild_id: str, user_id: str, typ: str = None, subtype: str = None):
     global permission_dict
     if permission_dict:
-        if user_id in permission_dict["admin"]:
+        if user_id in permission_dict["root"]:
             return True
-        if typ:
+        elif guild_id in permission_dict["admin"] and user_id in permission_dict["admin"][guild_id]:
+            return True
+        elif typ:
             if subtype:
                 if typ in permission_dict["subtype"] and subtype in permission_dict["subtype"][typ]:
-                    return user_id in permission_dict["subtype"][typ][subtype]
+                    if not permission_dict["subtype"][typ][subtype]:
+                        return False
+                    elif guild_id in permission_dict["subtype"][typ][subtype]:
+                        return user_id in permission_dict["subtype"][typ][subtype][guild_id]
             elif typ in permission_dict["type"]:
-                return user_id in permission_dict["type"][typ]
+                if not permission_dict["type"][typ]:
+                    return False
+                elif guild_id in permission_dict["type"][typ]:
+                    return user_id in permission_dict["type"][typ][guild_id]
     message = {
         "guild_id":guild_id,
         "user_id":user_id
@@ -418,8 +426,10 @@ async def dispatcher():
                         logger.error(f"接收到无UID的{type_dict.get(msg_type, '未知类型')}消息！消息内容：\n{msg}")
                         continue
                     if(msg_type in push_config_dict):
-                        if(subtype in push_config_dict[msg_type] and type(push_config_dict[msg_type][subtype]) == dict):
-                            push_channel_list = push_config_dict[msg_type][subtype].get(uid)
+                        push_channel_list = None
+                        if(subtype in push_config_dict[msg_type]):
+                            if(type(push_config_dict[msg_type][subtype]) == dict):
+                                push_channel_list = push_config_dict[msg_type][subtype].get(uid)
                         else:
                             push_channel_list = push_config_dict[msg_type].get(uid)
                         if(push_channel_list):

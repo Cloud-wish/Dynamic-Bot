@@ -6,6 +6,7 @@ import logging
 import json
 import os
 import traceback
+import httpx
 
 from util.bot_command import cmd
 from util.pic_builder import PicBuilder
@@ -68,6 +69,15 @@ def data_preprocess(data: dict, typ: str) -> dict:
         data["reply"] = data_preprocess(data["reply"], typ)
     return data
 
+async def download_image(url: str, headers: dict = None) -> bytes:
+    if not headers:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36"
+        }
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url=url, headers=headers)
+    return resp.content
+
 @cmd(("avatar", ))
 async def avatar_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
@@ -125,6 +135,10 @@ async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
 @cmd(("weibo", ))
 async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content: list[str] = []
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36",
+        "Referer": "https://m.weibo.cn/"
+    }
     if data["user"].get("avatar"):
         content.append('[CQ:image,file='+data["user"]["avatar"]+']')
     if("retweet" in data):
@@ -132,13 +146,17 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
     else:
         content.append(f"{data['user']['name']}在{data['created_time']}发了新微博并说：\n")
     content.append(data['text'] + '\n')
-    for pic_info in data['pics']:
-        content.append('[CQ:image,file='+pic_info+']')
+    for i, pic_info in enumerate(data['pics'], 1):
+        pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, uid, data['id'], f"{i}.jpeg")
+        save_pic(await download_image(pic_info, headers), pic_path)
+        content.append('[CQ:image,file='+pic_path+']')
     content.append('\n')
     if("retweet" in data):
         content.append(f"原微博：\n{data['retweet']['text']}\n")
-        for pic_info in data['retweet']['pics']:
-            content.append('[CQ:image,file='+pic_info+']')
+        for i, pic_info in enumerate(data['retweet']['pics'], 1):
+            pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data['retweet']['user']['uid'], data['retweet']['id'], f"{i}.jpeg")
+            save_pic(await download_image(pic_info, headers), pic_path)
+            content.append('[CQ:image,file='+pic_path+']')
         content.append('\n')
     content.append(f"微博链接：{'https://m.weibo.cn/detail/' + data['id']}")
     return content
@@ -146,19 +164,26 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
 @cmd(("comment", ))
 async def weibo_comment_builder(subtype: str, uid: str, data: dict):
     content: list[str] = []
-    # content.append('[CQ:image,file='+data["user"]["avatar"]+']')
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36",
+        "Referer": "https://m.weibo.cn/"
+    }
     if("reply" in data):
         content.append(f"{data['user']['name']}在{data['created_time']}回复了{data['reply']['user']['name']}的微博评论并说：\n")
     else:
         content.append(f"{data['user']['name']}在{data['created_time']}发了新微博评论并说：\n")
     content.append(data['text'] + '\n')
-    for pic_info in data['pics']:
-        content.append('[CQ:image,file='+pic_info+']')
+    for i, pic_info in enumerate(data['pics'], 1):
+        pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, uid, data['id'], f"{i}.jpeg")
+        save_pic(await download_image(pic_info, headers), pic_path)
+        content.append('[CQ:image,file='+pic_path+']')
     content.append('\n')
     if("reply" in data):
         content.append(f"原评论：\n{data['reply']['text']}\n")
-        for pic_info in data['reply']['pics']:
-            content.append('[CQ:image,file='+pic_info+']')
+        for i, pic_info in enumerate(data['reply']['pics'], i):
+            pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data['reply']['user']['uid'], data['reply']['id'], f"{i}.jpeg")
+            save_pic(await download_image(pic_info, headers), pic_path)
+            content.append('[CQ:image,file='+pic_path+']')
         content.append('\n')
     content.append(f"原微博链接：{'https://m.weibo.cn/detail/' + data['root']['id']}")
     return content

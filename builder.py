@@ -149,14 +149,14 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
     for i, pic_info in enumerate(data['pics'], 1):
         pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, uid, data['id'], f"{i}.jpeg")
         save_pic(await download_image(pic_info, headers), pic_path)
-        content.append('[CQ:image,file='+pic_path+']')
+        content.append('[CQ:image,file=file:///'+pic_path+']')
     content.append('\n')
     if("retweet" in data):
         content.append(f"原微博：\n{data['retweet']['text']}\n")
         for i, pic_info in enumerate(data['retweet']['pics'], 1):
             pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data['retweet']['user']['uid'], data['retweet']['id'], f"{i}.jpeg")
             save_pic(await download_image(pic_info, headers), pic_path)
-            content.append('[CQ:image,file='+pic_path+']')
+            content.append('[CQ:image,file=file:///'+pic_path+']')
         content.append('\n')
     content.append(f"微博链接：{'https://m.weibo.cn/detail/' + data['id']}")
     return content
@@ -176,14 +176,14 @@ async def weibo_comment_builder(subtype: str, uid: str, data: dict):
     for i, pic_info in enumerate(data['pics'], 1):
         pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, uid, data['id'], f"{i}.jpeg")
         save_pic(await download_image(pic_info, headers), pic_path)
-        content.append('[CQ:image,file='+pic_path+']')
+        content.append('[CQ:image,file=file:///'+pic_path+']')
     content.append('\n')
     if("reply" in data):
         content.append(f"原评论：\n{data['reply']['text']}\n")
         for i, pic_info in enumerate(data['reply']['pics'], i):
             pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data['reply']['user']['uid'], data['reply']['id'], f"{i}.jpeg")
             save_pic(await download_image(pic_info, headers), pic_path)
-            content.append('[CQ:image,file='+pic_path+']')
+            content.append('[CQ:image,file=file:///'+pic_path+']')
         content.append('\n')
     content.append(f"原微博链接：{'https://m.weibo.cn/detail/' + data['root']['id']}")
     return content

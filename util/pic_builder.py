@@ -1,7 +1,10 @@
+import logging
 from typing import Optional
-from playwright.async_api import Browser, async_playwright
+from playwright.async_api import Browser, PlaywrightContextManager, async_playwright
 
 from util.pic_process import join_pic
+
+logger = logging.getLogger("dynamic-bot")
 
 def cookie_to_dict_list(cookie: str, domain: str):
     cookie_list = cookie.split(";")
@@ -19,13 +22,22 @@ class PicBuilder:
 
     def __init__(self, config_dict: dict) -> None:
         self._config_dict = config_dict
+        self._playwright_context: Optional[PlaywrightContextManager] = None
         self._browser: Optional[Browser] = None
     
     async def get_browser(self) -> Browser:
-        if(self._browser == None):
-            p = await async_playwright().start()
-            self._browser = await p.chromium.launch()
+        if(self._playwright_context is None):
+            self._playwright_context = await async_playwright().start()
+        if(self._browser is None):
+            self._browser = await self._playwright_context.chromium.launch()
         return self._browser
+
+    async def close_browser(self) -> None:
+        if(not self._browser is None):
+            await self._browser.close()
+        if(not self._playwright_context is None):
+            await self._playwright_context.stop()
+
 
     async def reset_browser(self, **kwargs) -> Browser:
         if(self._browser):
@@ -45,70 +57,74 @@ class PicBuilder:
         context = await browser.new_context(user_agent=self.get_config("weibo_ua"), device_scale_factor=2)
         await context.add_cookies(cookie_to_dict_list(self.get_config("weibo_cookie"), "https://m.weibo.cn"))
         page = await context.new_page()
-        page.set_default_timeout(10000)
-        await page.set_viewport_size({'width':560, 'height':3500})
-        await page.goto('https://m.weibo.cn/detail/'+wb_id, wait_until="networkidle", timeout=15000)
-        if not created_time is None:
+        try:
+            page.set_default_timeout(10000)
+            await page.set_viewport_size({'width':560, 'height':3500})
+            await page.goto('https://m.weibo.cn/detail/'+wb_id, wait_until="networkidle", timeout=15000)
+            if not created_time is None:
+                try:
+                    await page.evaluate("""
+        var elements = document.getElementsByClassName("time");
+        for(i=0;i<elements.length;i++) {
+            if(elements[i].tagName == "SPAN") {
+                elements[i].textContent = """ + f'"{created_time}"' + """;
+                break;
+            }
+        }
+                    """)
+                except:
+                    pass
             try:
                 await page.evaluate("""
-    var elements = document.getElementsByClassName("time");
+    var className = "main";
+    var divs = document.getElementsByClassName(className);
+    var elements = new Array()
+    for(i=0;i<divs.length;i++) {
+        elements.push(divs[i])
+    }
+
     for(i=0;i<elements.length;i++) {
-        if(elements[i].tagName == "SPAN") {
-            elements[i].textContent = """ + f'"{created_time}"' + """;
-            break;
+        var element = elements[i];
+        elementClassName = element.className
+        var fsStr = getComputedStyle(element).fontSize;
+        var heightStr = getComputedStyle(element).height;
+        var fs = parseInt((fsStr).substring(0, fsStr.length-2))
+        var height = parseInt((heightStr).substring(0, heightStr.length-2))
+        var hasDiv = false
+        var isSpan = element.tagName == "SPAN"
+        var isA = element.tagName == "A"
+        var isBtn = element.tagName == "BUTTON"
+        var isFooter = element.tagName == "FOOTER"
+        var divnum = 0
+        if(isBtn || element.className.includes('-container') || isFooter) {
+            continue
         }
+        for(j=0;j<element.children.length;j++) {
+            elements.push(element.children[j])
+            if(element.children[j].tagName == "DIV") {
+                hasDiv = true
+                divnum += 1
+            }
+        }
+        if(isNaN(fs) || isSpan) {
+            continue
+        }
+        if(hasDiv || isA) {
+            continue
+        }
+        element.style.fontFamily = "'Microsoft YaHei', 'Noto Color Emoji', 'Unifont', 'sans-serif'"
     }
                 """)
             except:
                 pass
-        try:
-            await page.evaluate("""
-var className = "main";
-var divs = document.getElementsByClassName(className);
-var elements = new Array()
-for(i=0;i<divs.length;i++) {
-    elements.push(divs[i])
-}
-
-for(i=0;i<elements.length;i++) {
-    var element = elements[i];
-    elementClassName = element.className
-    var fsStr = getComputedStyle(element).fontSize;
-    var heightStr = getComputedStyle(element).height;
-    var fs = parseInt((fsStr).substring(0, fsStr.length-2))
-    var height = parseInt((heightStr).substring(0, heightStr.length-2))
-    var hasDiv = false
-    var isSpan = element.tagName == "SPAN"
-    var isA = element.tagName == "A"
-    var isBtn = element.tagName == "BUTTON"
-    var isFooter = element.tagName == "FOOTER"
-    var divnum = 0
-    if(isBtn || element.className.includes('-container') || isFooter) {
-        continue
-    }
-    for(j=0;j<element.children.length;j++) {
-        elements.push(element.children[j])
-        if(element.children[j].tagName == "DIV") {
-            hasDiv = true
-            divnum += 1
-        }
-    }
-    if(isNaN(fs) || isSpan) {
-        continue
-    }
-    if(hasDiv || isA) {
-        continue
-    }
-    element.style.fontFamily = "'Microsoft YaHei', 'Noto Color Emoji', 'Unifont', 'sans-serif'"
-}
-            """)
-        except:
-            pass
-        # await page.wait_for_timeout(600000)
-        upper_pic = await page.locator('[class="card-wrap"]').first.screenshot()
-        lower_pic = await page.locator('[class="weibo-main"]').screenshot()
-        await page.close()
-        await context.close()
+            # await page.wait_for_timeout(600000)
+            upper_pic = await page.locator('[class="card-wrap"]').first.screenshot()
+            lower_pic = await page.locator('[class="weibo-main"]').screenshot()
+        except Exception as e:
+            raise e
+        finally:
+            await page.close()
+            await context.close()
         pic = join_pic(upper_pic, lower_pic)
         return pic
 
@@ -117,71 +133,75 @@ for(i=0;i<elements.length;i++) {
         browser = await self.get_browser()
         context = await browser.new_context(user_agent=mobile_bili_ua, device_scale_factor=2)
         page = await context.new_page()
-        await page.set_viewport_size({'width':560, 'height':3500})
-        await page.goto('https://m.bilibili.com/dynamic/'+dynamic_id, wait_until="networkidle", timeout=15000)
-        await page.evaluate('document.getElementsByClassName("dynamic-float-btn")[0].style.display = "none"')
         try:
-            await page.evaluate('document.getElementsByClassName("dyn-header__following")[0].style.display = "none"')
-        except:
-            pass
-        try:
-            await page.evaluate('document.getElementsByClassName("dyn-orig-author__right")[0].style.display = "none"')
-        except:
-            pass
-        try:
-            await page.evaluate('document.getElementsByClassName("dyn-share")[0].style.display = "none"')
-        except:
-            pass
-        # await page.wait_for_timeout(600000)
-        try:
-            await page.evaluate("""
-var className = "dyn-card";
-var divs = document.getElementsByClassName(className);
-var elements = new Array()
-for(i=0;i<divs.length;i++) {
-    elements.push(divs[i])
-}
-
-for(i=0;i<elements.length;i++) {
-    var element = elements[i];
-    elementClassName = element.className
-    var fsStr = getComputedStyle(element).fontSize;
-    var heightStr = getComputedStyle(element).height;
-    var fs = parseInt((fsStr).substring(0, fsStr.length-2))
-    var height = parseInt((heightStr).substring(0, heightStr.length-2))
-    var hasDiv = false
-    var isSpan = element.tagName == "SPAN"
-    var isA = element.tagName == "A"
-    var isBtn = element.tagName == "BUTTON"
-    var divnum = 0
-    if(isBtn || element.className.includes('-container')) {
-        continue
-    }
-    for(j=0;j<element.children.length;j++) {
-        elements.push(element.children[j])
-        if(element.children[j].tagName == "DIV") {
-            hasDiv = true
-            divnum += 1
-        }
-    }
-    if(isNaN(fs) || isSpan) {
-        continue
-    }
-    if(hasDiv || isA) {
-        continue
-    }
-    element.style.fontFamily = "'Microsoft YaHei', 'Noto Color Emoji', 'Unifont', 'sans-serif'"
-}
-            """)
-        except:
-            pass
-        if not created_time is None:
+            await page.set_viewport_size({'width':560, 'height':3500})
+            await page.goto('https://m.bilibili.com/dynamic/'+dynamic_id, wait_until="networkidle", timeout=15000)
+            await page.evaluate('document.getElementsByClassName("dynamic-float-btn")[0].style.display = "none"')
             try:
-                await page.evaluate(f'document.getElementsByClassName("dyn-header__author__time")[0].textContent = "{created_time}"')
+                await page.evaluate('document.getElementsByClassName("dyn-header__following")[0].style.display = "none"')
             except:
                 pass
-        # await page.wait_for_timeout(600000)
-        pic = await page.locator('[class="dyn-card"]').screenshot()
-        await page.close()
-        await context.close()
+            try:
+                await page.evaluate('document.getElementsByClassName("dyn-orig-author__right")[0].style.display = "none"')
+            except:
+                pass
+            try:
+                await page.evaluate('document.getElementsByClassName("dyn-share")[0].style.display = "none"')
+            except:
+                pass
+            # await page.wait_for_timeout(600000)
+            try:
+                await page.evaluate("""
+    var className = "dyn-card";
+    var divs = document.getElementsByClassName(className);
+    var elements = new Array()
+    for(i=0;i<divs.length;i++) {
+        elements.push(divs[i])
+    }
+
+    for(i=0;i<elements.length;i++) {
+        var element = elements[i];
+        elementClassName = element.className
+        var fsStr = getComputedStyle(element).fontSize;
+        var heightStr = getComputedStyle(element).height;
+        var fs = parseInt((fsStr).substring(0, fsStr.length-2))
+        var height = parseInt((heightStr).substring(0, heightStr.length-2))
+        var hasDiv = false
+        var isSpan = element.tagName == "SPAN"
+        var isA = element.tagName == "A"
+        var isBtn = element.tagName == "BUTTON"
+        var divnum = 0
+        if(isBtn || element.className.includes('-container')) {
+            continue
+        }
+        for(j=0;j<element.children.length;j++) {
+            elements.push(element.children[j])
+            if(element.children[j].tagName == "DIV") {
+                hasDiv = true
+                divnum += 1
+            }
+        }
+        if(isNaN(fs) || isSpan) {
+            continue
+        }
+        if(hasDiv || isA) {
+            continue
+        }
+        element.style.fontFamily = "'Microsoft YaHei', 'Noto Color Emoji', 'Unifont', 'sans-serif'"
+    }
+                """)
+            except:
+                pass
+            if not created_time is None:
+                try:
+                    await page.evaluate(f'document.getElementsByClassName("dyn-header__author__time")[0].textContent = "{created_time}"')
+                except:
+                    pass
+            # await page.wait_for_timeout(600000)
+            pic = await page.locator('[class="dyn-card"]').screenshot()
+        except Exception as e:
+            raise e
+        finally:
+            await page.close()
+            await context.close()
         return pic

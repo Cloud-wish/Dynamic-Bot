@@ -5,8 +5,10 @@ from datetime import datetime, timedelta, timezone
 import logging
 import json
 import os
+import random
 import traceback
 import httpx
+import asyncio
 
 from util.bot_command import cmd
 from util.pic_builder import PicBuilder
@@ -73,14 +75,18 @@ def data_preprocess(data: dict, typ: str) -> dict:
         data["reply"] = data_preprocess(data["reply"], typ)
     return data
 
-async def download_image(url: str, headers: dict = None) -> bytes:
-    if not headers:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36"
-        }
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(url=url, headers=headers)
-    return resp.content
+async def download_image(url: str, headers: dict = None, retry_count: int = 2) -> bytes:
+    for _ in range(retry_count):
+        if not headers:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36"
+            }
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url=url, headers=headers)
+        if len(resp.content) > 0:
+            return resp.content
+        await asyncio.sleep(random.random() + 0.3)
+    raise Exception(f"图片下载失败! URL:{url}")
 
 @cmd(("avatar", ))
 async def avatar_builder(subtype: str, uid: str, data: dict) -> list[str]:
@@ -88,8 +94,12 @@ async def avatar_builder(subtype: str, uid: str, data: dict) -> list[str]:
     content.append(f"{data['user']['name']}更换了{_type_dict[data['type']]}头像：\n")
     if data['type'] == "weibo" and pic_config_dict["weibo_avatar_save"]:
         pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", "avatar", f"{uid}.jpeg")
-        save_pic(await download_image(data["now"], weibo_headers), pic_path)
-        content.append('[CQ:image,file=file:///'+pic_path+']')
+        try:
+            save_pic(await download_image(data["now"], weibo_headers, retry_count=3), pic_path)
+            content.append('[CQ:image,file=file:///'+pic_path+']')
+        except:
+            logger.error(f"微博头像保存出错!错误信息:\n{traceback.format_exc()}")
+            content.append("[图片加载失败]")
     else:
         content.append('[CQ:image,file='+data["now"]+']')
     return content
@@ -131,7 +141,7 @@ async def weibo_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
         except:
             if i == 2:
                 errmsg = traceback.format_exc()
-                logger.error(f"生成微博图片发生错误！错误信息：\n{errmsg}")
+                logger.error(f"生成微博图片发生错误!错误信息:\n{errmsg}")
                 return None
             pass
     pic = modify_pic(pic)
@@ -147,8 +157,12 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
     if data["user"].get("avatar"):
         if pic_config_dict["weibo_avatar_save"]:
             pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", "avatar", f"{uid}.jpeg")
-            save_pic(await download_image(data["user"]["avatar"], weibo_headers), pic_path)
-            content.append('[CQ:image,file=file:///'+pic_path+']')
+            try:
+                save_pic(await download_image(data["user"]["avatar"], weibo_headers), pic_path)
+                content.append('[CQ:image,file=file:///'+pic_path+']')
+            except:
+                logger.error(f"微博头像保存出错!错误信息:\n{traceback.format_exc()}")
+                content.append("[图片加载失败]")
         else:
             content.append('[CQ:image,file='+data["user"]["avatar"]+']')
     if("retweet" in data):
@@ -159,8 +173,12 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
     for i, pic_info in enumerate(data['pics'], 1):
         if pic_config_dict["weibo_pic_save"]:
             pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, uid, data['id'], f"{i}.jpeg")
-            save_pic(await download_image(pic_info, weibo_headers), pic_path)
-            content.append('[CQ:image,file=file:///'+pic_path+']')
+            try:
+                save_pic(await download_image(pic_info, weibo_headers), pic_path)
+                content.append('[CQ:image,file=file:///'+pic_path+']')
+            except:
+                logger.error(f"微博图片保存出错!错误信息:\n{traceback.format_exc()}")
+                content.append("[图片加载失败]")
         else:
             content.append('[CQ:image,file='+pic_info+']')
     content.append('\n')
@@ -169,8 +187,12 @@ async def weibo_builder(subtype: str, uid: str, data: dict) -> list[str]:
         for i, pic_info in enumerate(data['retweet']['pics'], 1):
             if pic_config_dict["weibo_pic_save"]:
                 pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data['retweet']['user']['uid'], data['retweet']['id'], f"{i}.jpeg")
-                save_pic(await download_image(pic_info, weibo_headers), pic_path)
-                content.append('[CQ:image,file=file:///'+pic_path+']')
+                try:
+                    save_pic(await download_image(pic_info, weibo_headers), pic_path)
+                    content.append('[CQ:image,file=file:///'+pic_path+']')
+                except:
+                    logger.error(f"微博图片保存出错!错误信息:\n{traceback.format_exc()}")
+                    content.append("[图片加载失败]")
             else:
                 content.append('[CQ:image,file='+pic_info+']')
         content.append('\n')
@@ -188,8 +210,12 @@ async def weibo_comment_builder(subtype: str, uid: str, data: dict):
     for i, pic_info in enumerate(data['pics'], 1):
         if pic_config_dict["weibo_pic_save"]:
             pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, uid, data['id'], f"{i}.jpeg")
-            save_pic(await download_image(pic_info, weibo_headers), pic_path)
-            content.append('[CQ:image,file=file:///'+pic_path+']')
+            try:
+                save_pic(await download_image(pic_info, weibo_headers), pic_path)
+                content.append('[CQ:image,file=file:///'+pic_path+']')
+            except:
+                logger.error(f"微博评论图片保存出错!错误信息:\n{traceback.format_exc()}")
+                content.append("[图片加载失败]")
         else:
             content.append('[CQ:image,file='+pic_info+']')
     content.append('\n')
@@ -198,8 +224,12 @@ async def weibo_comment_builder(subtype: str, uid: str, data: dict):
         for i, pic_info in enumerate(data['reply']['pics'], i):
             if pic_config_dict["weibo_pic_save"]:
                 pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data['reply']['user']['uid'], data['reply']['id'], f"{i}.jpeg")
-                save_pic(await download_image(pic_info, weibo_headers), pic_path)
-                content.append('[CQ:image,file=file:///'+pic_path+']')
+                try:
+                    save_pic(await download_image(pic_info, weibo_headers), pic_path)
+                    content.append('[CQ:image,file=file:///'+pic_path+']')
+                except:
+                    logger.error(f"微博评论图片保存出错!错误信息:\n{traceback.format_exc()}")
+                    content.append("[图片加载失败]")
             else:
                 content.append('[CQ:image,file='+pic_info+']')
         content.append('\n')
@@ -258,7 +288,7 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
         except:
             if i == 2:
                 errmsg = traceback.format_exc()
-                logger.error(f"生成B站动态图片发生错误！错误信息：\n{errmsg}")
+                logger.error(f"生成B站动态图片发生错误!错误信息:\n{errmsg}")
                 return None
             pass
     pic = modify_pic(pic)

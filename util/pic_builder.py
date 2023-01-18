@@ -1,7 +1,4 @@
 from __future__ import annotations
-import asyncio
-import io
-from PIL import Image
 from typing import Optional
 from playwright.async_api import Browser, PlaywrightContextManager, Page, async_playwright
 
@@ -177,8 +174,9 @@ for(i=0;i<elements.length;i++) {
         except:
             pass
         await page.evaluate('document.getElementsByClassName("m-float-openapp")[0].style.display = "none"') # 开启APP浮动按钮
-        await page.locator('[class="opus-read-more"]').click() # 展开全文
-        await page.locator('[class="open-app-dialog-btn cancel"]').click() # 打开APP->取消
+        if await page.locator('[class="opus-read-more"]').is_visible():
+            await page.locator('[class="opus-read-more"]').click() # 展开全文
+            await page.locator('[class="open-app-dialog-btn cancel"]').click() # 打开APP->取消
         try: # 关注按钮
             await page.evaluate('document.getElementsByClassName("opus-module-author__action")[0].style.display = "none"')
         except:

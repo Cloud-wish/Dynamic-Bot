@@ -126,8 +126,6 @@ class PicBuilder:
         return pic
 
     async def font_replace_js(self, page: Page, class_name: str, font_list: list[str] = ['Microsoft YaHei', 'Noto Color Emoji', 'Unifont', 'sans-serif']):
-        for i in range(len(font_list)):
-            font_list[i] = f"'{font_list[i]}'"
         await page.evaluate("""
 var className = \""""+ class_name +"""\"; // 指定从哪个元素开始匹配
 var divs = document.getElementsByClassName(className);
@@ -164,7 +162,7 @@ for(i=0;i<elements.length;i++) {
     if(hasDiv || isA) {
         continue
     }
-    element.style.fontFamily = \""""+ ", ".join(font_list) +"""\"
+    element.style.fontFamily = '"""+ ", ".join(font_list) +"""'
 }
             """)
 

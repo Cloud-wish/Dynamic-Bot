@@ -179,6 +179,10 @@ for(i=0;i<elements.length;i++) {
             await page.evaluate('document.getElementsByClassName("opus-module-author__action")[0].style.display = "none"')
         except:
             pass
+        try: # 顶部导航栏
+            await page.evaluate('document.getElementsByClassName("opus-nav")[0].style.display = "none"')
+        except:
+            pass
         try: # 字体
             await self.font_replace_js(page, "opus-modules")
         except:
@@ -223,7 +227,7 @@ for(i=0;i<elements.length;i++) {
         context = await browser.new_context(user_agent=mobile_bili_ua, device_scale_factor=2)
         page = await context.new_page()
         try:
-            await page.set_viewport_size({'width':560, 'height':1000})
+            await page.set_viewport_size({'width':560, 'height':3500})
             if self.get_config("bili_dyn_new_style", False):
                 await page.goto('https://m.bilibili.com/opus/'+dynamic_id, wait_until="networkidle", timeout=15000)
             else:

@@ -221,7 +221,7 @@ async def weibo_comment_builder(subtype: str, uid: str, data: dict):
     content.append('\n')
     if("reply" in data):
         content.append(f"原评论：\n{data['reply']['text']}\n")
-        for i, pic_info in enumerate(data['reply']['pics'], i):
+        for i, pic_info in enumerate(data['reply']['pics'], 1):
             if pic_config_dict["weibo_pic_save"]:
                 pic_path = os.path.join(pic_config_dict["pic_save_path"], "weibo", subtype, data['reply']['user']['uid'], data['reply']['id'], f"{i}.jpeg")
                 try:

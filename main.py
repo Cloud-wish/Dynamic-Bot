@@ -123,12 +123,12 @@ async def add_crawler(uid: str, typ: str, timeout: int = 10, **kwargs) -> bool:
             resp = resp.json()
             if(resp["code"] != 0):
                 logger.error(f"向Crawler添加推送时返回错误！\ncode：{resp['code']} msg：{resp['msg']}")
-                return False
+                return {"success":False, "result": resp}
     except:
         errmsg = traceback.format_exc()
         logger.error(f"向Crawler添加推送时出错！错误信息：\n{errmsg}")
-        return False
-    return True
+        return {"success":False, "result": {"code": -1, "msg": errmsg}}
+    return {"success":True, "result": resp}
 
 async def remove_crawler(uid: str, typ: str, subtype: str = None) -> bool:
     cmd = {
@@ -144,12 +144,12 @@ async def remove_crawler(uid: str, typ: str, subtype: str = None) -> bool:
             resp = resp.json()
             if(resp["code"] != 0):
                 logger.error(f"向Crawler删除推送时返回错误！\ncode：{resp['code']} msg：{resp['msg']}")
-                return False
+                return {"success":False, "result": resp}
     except:
         errmsg = traceback.format_exc()
         logger.error(f"向Crawler删除推送时出错！错误信息：\n{errmsg}")
-        return False
-    return True
+        return {"success":False, "result": {"code": -1, "msg": errmsg}}
+    return {"success":True, "result": resp}
 
 async def get_user_auth(guild_id: str, user_id: str, typ: str = None, subtype: str = None):
     global permission_dict
@@ -195,12 +195,15 @@ async def add_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[st
         push_config_dict[typ][uid] = set()
     if not channel in push_config_dict[typ][uid]:
         resp = await add_crawler(uid, typ)
-        if(resp):
+        if(resp["success"]):
             push_config_dict[typ][uid].add(channel)
             save_push_config()
             return f"UID：{uid} 的{type_dict[typ]}推送添加成功！"
         else:
-            return f"UID：{uid} 的{type_dict[typ]}推送添加失败，请与管理员联系！"
+            if resp["result"]["code"] == 11:
+                return f"UID：{uid} 未开通直播间"
+            else: 
+                return f"UID：{uid} 的{type_dict[typ]}推送添加失败，请与管理员联系！"
     else:
         return f"UID：{uid} 的{type_dict[typ]}推送已存在！"
 
@@ -221,7 +224,7 @@ async def add_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: str,
             resp = await add_crawler(uid, typ, 37, subtype = subtype, is_top = is_top)
         else:
             resp = await add_crawler(uid, typ, 37, subtype = subtype)
-        if(resp):
+        if(resp["success"]):
             push_config_dict[typ][subtype][uid].add(channel)
             save_push_config()
             return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送添加成功！"
@@ -238,7 +241,7 @@ async def remove_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple
     if typ in push_config_dict and uid in push_config_dict[typ] and channel in push_config_dict[typ][uid]:
         if(len(push_config_dict[typ][uid]) == 1):
             resp = await remove_crawler(uid, typ)
-            if(resp):
+            if(resp["success"]):
                 del push_config_dict[typ][uid]
                 save_push_config()
                 return f"UID：{uid} 的{type_dict[typ]}推送删除成功！"
@@ -259,7 +262,7 @@ async def remove_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: s
     if typ in push_config_dict and subtype in push_config_dict[typ] and uid in push_config_dict[typ][subtype] and channel in push_config_dict[typ][subtype][uid]:
         if(len(push_config_dict[typ][subtype][uid]) == 1):
             resp = await remove_crawler(uid, typ, subtype)
-            if(resp):
+            if(resp["success"]):
                 del push_config_dict[typ][subtype][uid]
                 save_push_config()
                 return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送删除成功！"

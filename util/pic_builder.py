@@ -5,9 +5,13 @@ from playwright.async_api import Browser, PlaywrightContextManager, Page, async_
 from util.pic_process import join_pic
 
 def cookie_to_dict_list(cookie: str, domain: str):
+    if not cookie:
+        return []
     cookie_list = cookie.split(";")
     cookies = []
     for c in cookie_list:
+        if not c:
+            continue
         cookie_pair = c.lstrip().rstrip().split("=")
         cookies.append({
             "name": cookie_pair[0],
@@ -49,10 +53,14 @@ class PicBuilder:
     def get_config(self, key: str, default = None) -> str:
         return self._config_dict.get(key, default)
 
-    async def get_wb_pic(self, wb_id: str, created_time: str = None) -> bytes:
+    async def get_wb_pic(self, wb_id: str, created_time: str = None, cookie: str = None, ua: str = None) -> bytes:
         browser = await self.get_browser()
-        context = await browser.new_context(user_agent=self.get_config("weibo_ua"), device_scale_factor=2)
-        await context.add_cookies(cookie_to_dict_list(self.get_config("weibo_cookie"), "https://m.weibo.cn"))
+        if ua is None:
+            ua = self.get_config("weibo_ua")
+        if cookie is None:
+            cookie = self.get_config("weibo_cookie", "")
+        context = await browser.new_context(user_agent=ua, device_scale_factor=2)
+        await context.add_cookies(cookie_to_dict_list(cookie, "https://m.weibo.cn"))
         page = await context.new_page()
         try:
             page.set_default_timeout(10000)

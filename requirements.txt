@@ -1,0 +1,7 @@
+fontTools==4.38.0
+httpx==0.23.0
+jsons==1.6.3
+Pillow==9.4.0
+playwright==1.19.0
+requests==2.22.0
+websockets==10.1

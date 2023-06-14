@@ -15,6 +15,7 @@ import httpx
 from util.logger import init_logger
 from util.bot_command import cmd
 from util.send_guild_message import send_guild_msg
+from util.send_group_message import send_group_msg
 from builder import build_wb_msg, build_dyn_msg, build_live_msg
 from constant import command_dict, type_dict, sub_type_dict
 
@@ -75,7 +76,7 @@ def load_config():
             elif(value == "false"):
                 value = False
             config_dict[name][key] = value
-    config_dict["bot"]["bot_id"] = str(config_dict["bot"]["bot_id"])
+    # config_dict["bot"]["bot_id"] = str(config_dict["bot"]["bot_id"])
     try:
         with open("push_config.json", "r", encoding="UTF-8") as f:
             push_config_dict = jsons.loads(f.read())
@@ -91,12 +92,35 @@ def load_config():
                     push_config_dict[typ] = set([tuple(channel) for channel in push_config_dict[typ]])
     except:
         pass
+    # load bot id
+    try:
+        with httpx.Client() as client:
+            if config_dict["bot"]["qq_enable"]:
+                resp = client.get(url=config_dict["cqhttp"]["http_url"]+"/get_login_info")
+                resp = resp.json()
+                if(resp["retcode"] != 0):
+                    logger.error(f"获取bot的qq号时返回错误！\ncode：{resp['retcode']} msg：{resp['message']}")
+                    exit(-1)
+                config_dict["bot"]["qq_id"] = str(resp["data"]["user_id"])
+                logger.info(f'获取到bot的qq号:{config_dict["bot"]["qq_id"]}')
+            if config_dict["bot"]["guild_enable"]:
+                resp = client.get(url=config_dict["cqhttp"]["http_url"]+"/get_guild_service_profile")
+                resp = resp.json()
+                if(resp["retcode"] != 0):
+                    logger.error(f"获取bot的频道id时返回错误！\ncode：{resp['retcode']} msg：{resp['message']}")
+                    exit(-1)
+                config_dict["bot"]["guild_id"] = resp["data"]["tiny_id"]
+                logger.info(f'获取到bot的频道id:{config_dict["bot"]["guild_id"]}')
+    except:
+        errmsg = traceback.format_exc()
+        logger.error(f"获取bot id时出错！错误信息：\n{errmsg}")
+        exit(-1)
 
 def save_push_config():
     with open("push_config.json", "w", encoding="UTF-8") as f:
         f.write(jsons.dumps(push_config_dict))
 
-def put_guild_channel_msg(guild_id: str, channel_id: str, message: list[str]):
+def put_message(guild_id: str, channel_id: str, message: list[str]):
     while(len(message) > 0 and (len(message[-1]) == 0 or message[-1] == "\n")):
         message.pop()
     if(len(message) == 0):
@@ -151,7 +175,9 @@ async def remove_crawler(uid: str, typ: str, subtype: str = None) -> bool:
         return {"success":False, "result": {"code": -1, "msg": errmsg}}
     return {"success":True, "result": resp}
 
-async def get_user_auth(guild_id: str, user_id: str, typ: str = None, subtype: str = None):
+async def get_user_auth(channel: tuple[str, str], user_id: str, typ: str = None, subtype: str = None):
+    guild_id = channel[0]
+    channel_id = channel[1]
     global permission_dict
     if permission_dict:
         if user_id in permission_dict["root"]:
@@ -170,19 +196,33 @@ async def get_user_auth(guild_id: str, user_id: str, typ: str = None, subtype: s
                     return False
                 elif guild_id in permission_dict["type"][typ]:
                     return user_id in permission_dict["type"][typ][guild_id]
-    message = {
-        "guild_id":guild_id,
-        "user_id":user_id
-    }
-    async with httpx.AsyncClient() as client:
-        res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_guild_member_profile", data = message, headers={'Connection':'close'}, timeout=10)
-    user_data = res.json()
-    if(user_data['retcode'] == 0):
-        roles = user_data['data']['roles']
-        for role in roles:
-            if(role['role_id'] == '2'):
+    if guild_id != channel_id:
+        message = {
+            "guild_id":guild_id,
+            "user_id":user_id
+        }
+        async with httpx.AsyncClient() as client:
+            res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_guild_member_profile", data = message, headers={'Connection':'close'}, timeout=10)
+        user_data = res.json()
+        if(user_data['retcode'] == 0):
+            roles = user_data['data']['roles']
+            for role in roles:
+                if(role['role_id'] == '2'):
+                    return True
+        return False
+    else:
+        message = {
+            "group_id":guild_id,
+            "user_id":user_id
+        }
+        async with httpx.AsyncClient() as client:
+            res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_group_member_info", data = message, headers={'Connection':'close'}, timeout=10)
+        user_data = res.json()
+        if(user_data['retcode'] == 0):
+            role = user_data['data']['role']
+            if role in ("owner", "admin"):
                 return True
-    return False
+        return False
 
 @cmd((command_dict["add"]["weibo"], "weibo"), (command_dict["add"]["bili_dyn"], "bili_dyn"), (command_dict["add"]["bili_live"], "bili_live"))
 async def add_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
@@ -279,7 +319,11 @@ async def remove_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: s
 async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
     if not await get_user_auth(channel[0], user_id):
         return None
-    reply = ["当前子频道开启的推送如下：\n"]
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+    else:
+        channel_type = "群聊"
+    reply = [f"当前{channel_type}中开启的推送如下：\n"]
     for typ in type_dict.keys():
         reply.append(f"{type_dict[typ]}推送：\n")
         if(typ in push_config_dict):
@@ -302,25 +346,33 @@ async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> s
 async def disable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
     if not await get_user_auth(channel[0], user_id):
         return None
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+    else:
+        channel_type = "群聊"
     global push_config_dict
     if(not "blocked" in push_config_dict):
         push_config_dict["blocked"] = set()
     if(not channel in push_config_dict["blocked"]):
         push_config_dict["blocked"].add(channel)
-        return "成功关闭当前子频道的推送功能！"
+        return f"成功关闭当前{channel_type}的推送功能！"
     else:
-        return "当前子频道的推送功能已关闭！"
+        return f"当前{channel_type}的推送功能已关闭！"
 
 @cmd((command_dict["enable"]["channel"], ))
 async def enable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
     if not await get_user_auth(channel[0], user_id):
         return None
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+    else:
+        channel_type = "群聊"
     global push_config_dict
     if("blocked" in push_config_dict and channel in push_config_dict["blocked"]):
         push_config_dict["blocked"].remove(channel)
-        return "成功开启当前子频道的推送功能！"
+        return f"成功开启当前{channel_type}的推送功能！"
     else:
-        return "当前子频道的推送功能已开启！"
+        return f"当前{channel_type}的推送功能已开启！"
 
 @cmd((command_dict["help"], ))
 async def get_help(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
@@ -328,7 +380,6 @@ async def get_help(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
 
 async def receiver(websocket):
     global config_dict, ws_relay_conn
-    bot_id = config_dict["bot"]["bot_id"]
     handler_list = [
         get_push_config,
         add_push,
@@ -364,13 +415,24 @@ async def receiver(websocket):
                             pass
                         ws_relay_conn = None
             data = jsons.loads(message)
-            if(data.get('post_type', "") == 'message' and data.get('message_type', "") == 'guild' and data.get('sub_type', "") == 'channel'):
-                # 频道消息
-                content: str = data['message'].rstrip()
+            if(data.get('post_type', "") == 'message'):
+                if(config_dict["bot"]["guild_enable"] and data.get('message_type', "") == 'guild' and data.get('sub_type', "") == 'channel'):
+                    # 频道消息
+                    content: str = data['message'].rstrip()
+                    channel: tuple[str] = (str(data['guild_id']), str(data['channel_id']))
+                    bot_id = config_dict["bot"]["guild_id"]
+                elif(config_dict["bot"]["qq_enable"] and data.get('message_type', "") == 'group' and data.get('sub_type', "") == 'normal'):
+                    # 群聊消息
+                    if data.get('anonymous', None):
+                        continue
+                    content: str = data['raw_message'].rstrip()
+                    channel: tuple[str] = (str(data['group_id']), str(data['group_id']))
+                    bot_id = config_dict["bot"]["qq_id"]
+                else:
+                    continue
                 if(content.startswith(f'[CQ:at,qq={bot_id}]')):
                     # 是at bot的消息
                     content = content.replace(f'[CQ:at,qq={bot_id}]', '').lstrip()
-                    channel: tuple[str] = (str(data['guild_id']), str(data['channel_id']))
                     user_id = str(data['sender']['user_id'])
                     logger.debug(f"收到来自频道{channel[0]}的子频道{channel[1]}的{data['sender']['nickname']}的消息：{content}")
                     for handler in handler_list:
@@ -378,7 +440,7 @@ async def receiver(websocket):
                         if not resp is None:
                             if(type(resp) == str):
                                 resp = [resp]
-                            put_guild_channel_msg(channel[0], channel[1], resp)
+                            put_message(channel[0], channel[1], resp)
                             break
     except Exception as e:
         logger.error(f"与cqhttp的Websocket连接出错！错误信息：\n{traceback.format_exc()}")
@@ -441,7 +503,7 @@ async def dispatcher():
                                 logger.info(f"接收到消息：\n{notify_msg}\n推送频道列表：{push_channel_list}")
                                 for channel in push_channel_list:
                                     if(not channel in push_config_dict.get("blocked", tuple())):
-                                        put_guild_channel_msg(channel[0], channel[1], notify_msg)
+                                        put_message(channel[0], channel[1], notify_msg)
         except Exception as e:
             logger.error(f"与Crawler的Websocket连接出错！错误信息：\n{traceback.format_exc()}\n尝试重连...")
             await asyncio.sleep(1)
@@ -451,8 +513,12 @@ def msg_sender():
     while True:
         msg = msg_queue.get(block = True, timeout = None)
         msg_queue.task_done()
-        logger.debug(f"消息发送线程接收到要发送到频道{msg['guild_id']}的子频道{msg['channel_id']}的消息：\n{''.join(msg['data'])}")
-        send_guild_msg(msg)
+        if msg['guild_id'] != msg['channel_id']:
+            logger.debug(f"消息发送线程接收到要发送到频道{msg['guild_id']}的子频道{msg['channel_id']}的消息：\n{''.join(msg['data'])}")
+            send_guild_msg(msg)
+        else:
+            logger.debug(f"消息发送线程接收到要发送到群聊{msg['guild_id']}的消息：\n{''.join(msg['data'])}")
+            send_group_msg(msg)
         time.sleep(random.random() + 1)
 
 def main():

@@ -180,18 +180,18 @@ async def get_user_auth(channel: tuple[str, str], user_id: str, typ: str = None,
     channel_id = channel[1]
     global permission_dict
     if permission_dict:
-        if user_id in permission_dict["root"]:
+        if "root" in permission_dict and user_id in permission_dict["root"]:
             return True
-        elif guild_id in permission_dict["admin"] and user_id in permission_dict["admin"][guild_id]:
+        elif "admin" in permission_dict and guild_id in permission_dict["admin"] and user_id in permission_dict["admin"][guild_id]:
             return True
         elif typ:
-            if subtype:
+            if "subtype" in permission_dict and subtype:
                 if typ in permission_dict["subtype"] and subtype in permission_dict["subtype"][typ]:
                     if not permission_dict["subtype"][typ][subtype]:
                         return False
                     elif guild_id in permission_dict["subtype"][typ][subtype]:
                         return user_id in permission_dict["subtype"][typ][subtype][guild_id]
-            elif typ in permission_dict["type"]:
+            elif "type" in permission_dict and typ in permission_dict["type"]:
                 if not permission_dict["type"][typ]:
                     return False
                 elif guild_id in permission_dict["type"][typ]:

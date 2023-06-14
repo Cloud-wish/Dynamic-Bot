@@ -99,7 +99,7 @@ def load_config():
                 resp = client.get(url=config_dict["cqhttp"]["http_url"]+"/get_login_info")
                 resp = resp.json()
                 if(resp["retcode"] != 0):
-                    logger.error(f"获取bot的qq号时返回错误！\ncode：{resp['retcode']} msg：{resp['message']}")
+                    logger.error(f"获取bot的qq号时返回错误！\ncode：{resp['retcode']} msg：{resp['wording']}")
                     exit(-1)
                 config_dict["bot"]["qq_id"] = str(resp["data"]["user_id"])
                 logger.info(f'获取到bot的qq号:{config_dict["bot"]["qq_id"]}')
@@ -107,7 +107,7 @@ def load_config():
                 resp = client.get(url=config_dict["cqhttp"]["http_url"]+"/get_guild_service_profile")
                 resp = resp.json()
                 if(resp["retcode"] != 0):
-                    logger.error(f"获取bot的频道id时返回错误！\ncode：{resp['retcode']} msg：{resp['message']}")
+                    logger.error(f"获取bot的频道id时返回错误！\ncode：{resp['retcode']} msg：{resp['wording']}")
                     exit(-1)
                 config_dict["bot"]["guild_id"] = resp["data"]["tiny_id"]
                 logger.info(f'获取到bot的频道id:{config_dict["bot"]["guild_id"]}')
@@ -199,39 +199,47 @@ async def get_user_auth(channel: tuple[str, str], user_id: str, typ: str = None,
                     return False
                 elif guild_id in permission_dict["type"][typ]:
                     return user_id in permission_dict["type"][typ][guild_id]
-    if guild_id != channel_id:
-        message = {
-            "guild_id":guild_id,
-            "user_id":user_id
-        }
-        async with httpx.AsyncClient() as client:
-            res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_guild_member_profile", data = message, headers={'Connection':'close'}, timeout=10)
-        user_data = res.json()
-        logger.debug(f"频道{channel}用户{user_id}权限查询返回结果:{user_data}")
-        if(user_data['retcode'] == 0):
-            roles = user_data['data']['roles']
-            for role in roles:
-                if(role['role_id'] == '2'):
+    try:
+        if guild_id != channel_id:
+            message = {
+                "guild_id":guild_id,
+                "user_id":user_id
+            }
+            async with httpx.AsyncClient() as client:
+                res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_guild_member_profile", data = message, headers={'Connection':'close'}, timeout=10)
+            user_data = res.json()
+            logger.debug(f"频道{channel}用户{user_id}权限查询返回结果:{user_data}")
+            if(user_data['retcode'] == 0):
+                roles = user_data['data']['roles']
+                for role in roles:
+                    if(role['role_id'] == '2'):
+                        return True
+            else:
+                logger.error(f"频道{channel}用户{user_id}权限查询返回错误！\ncode：{user_data['retcode']} msg：{user_data['wording']}")
+            return False
+        else:
+            message = {
+                "group_id":guild_id,
+                "user_id":user_id
+            }
+            async with httpx.AsyncClient() as client:
+                res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_group_member_info", data = message, headers={'Connection':'close'}, timeout=10)
+            user_data = res.json()
+            logger.debug(f"群聊{channel[0]}用户{user_id}权限查询返回结果:{user_data}")
+            if(user_data['retcode'] == 0):
+                role = user_data['data']['role']
+                if role in ("owner", "admin"):
                     return True
-        return False
-    else:
-        message = {
-            "group_id":guild_id,
-            "user_id":user_id
-        }
-        async with httpx.AsyncClient() as client:
-            res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_group_member_info", data = message, headers={'Connection':'close'}, timeout=10)
-        user_data = res.json()
-        logger.debug(f"群聊{channel[0]}用户{user_id}权限查询返回结果:{user_data}")
-        if(user_data['retcode'] == 0):
-            role = user_data['data']['role']
-            if role in ("owner", "admin"):
-                return True
-        return False
+            else:
+                logger.error(f"群聊{channel[0]}用户{user_id}权限查询返回错误！\ncode：{user_data['retcode']} msg：{user_data['wording']}")
+            return False
+    except:
+        errmsg = traceback.format_exc()
+        logger.error(f"查询用户权限时出错！错误信息：\n{errmsg}")
 
 @cmd((command_dict["add"]["weibo"], "weibo"), (command_dict["add"]["bili_dyn"], "bili_dyn"), (command_dict["add"]["bili_live"], "bili_live"))
 async def add_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
-    if not await get_user_auth(channel[0], user_id, typ):
+    if not await get_user_auth(channel, user_id, typ):
         return None
     global push_config_dict
     if not typ in push_config_dict:
@@ -254,7 +262,7 @@ async def add_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[st
 
 @cmd((command_dict["add"]["weibo_comment"], "weibo", "comment"), (command_dict["add"]["bili_dyn_top_comment"], "bili_dyn", "comment"), (command_dict["add"]["bili_dyn_latest_comment"], "bili_dyn", "comment"))
 async def add_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
-    if not await get_user_auth(channel[0], user_id, typ):
+    if not await get_user_auth(channel, user_id, typ):
         return None
     global push_config_dict
     if (not typ in push_config_dict) or (not uid in push_config_dict[typ]):
@@ -280,7 +288,7 @@ async def add_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: str,
 
 @cmd((command_dict["remove"]["weibo"], "weibo"), (command_dict["remove"]["bili_dyn"], "bili_dyn"), (command_dict["remove"]["bili_live"], "bili_live"))
 async def remove_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
-    if not await get_user_auth(channel[0], user_id, typ):
+    if not await get_user_auth(channel, user_id, typ):
         return None
     global push_config_dict
     if typ in push_config_dict and uid in push_config_dict[typ] and channel in push_config_dict[typ][uid]:
@@ -301,7 +309,7 @@ async def remove_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple
 
 @cmd((command_dict["remove"]["weibo_comment"], "weibo", "comment"), (command_dict["remove"]["bili_dyn_top_comment"], "bili_dyn", "comment"), (command_dict["remove"]["bili_dyn_latest_comment"], "bili_dyn", "comment"))
 async def remove_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
-    if not await get_user_auth(channel[0], user_id, typ):
+    if not await get_user_auth(channel, user_id, typ):
         return None
     global push_config_dict
     if typ in push_config_dict and subtype in push_config_dict[typ] and uid in push_config_dict[typ][subtype] and channel in push_config_dict[typ][subtype][uid]:
@@ -322,7 +330,7 @@ async def remove_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: s
 
 @cmd((command_dict["config"]["channel"], ))
 async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
-    if not await get_user_auth(channel[0], user_id):
+    if not await get_user_auth(channel, user_id):
         return None
     if channel[0] != channel[1]:
         channel_type = "子频道"
@@ -349,7 +357,7 @@ async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> s
 
 @cmd((command_dict["disable"]["channel"], ))
 async def disable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
-    if not await get_user_auth(channel[0], user_id):
+    if not await get_user_auth(channel, user_id):
         return None
     if channel[0] != channel[1]:
         channel_type = "子频道"
@@ -366,7 +374,7 @@ async def disable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
 
 @cmd((command_dict["enable"]["channel"], ))
 async def enable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
-    if not await get_user_auth(channel[0], user_id):
+    if not await get_user_auth(channel, user_id):
         return None
     if channel[0] != channel[1]:
         channel_type = "子频道"

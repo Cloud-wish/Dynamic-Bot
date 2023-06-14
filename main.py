@@ -124,7 +124,10 @@ def put_message(guild_id: str, channel_id: str, message: list[str]):
     while(len(message) > 0 and (len(message[-1]) == 0 or message[-1] == "\n")):
         message.pop()
     if(len(message) == 0):
-        logger.error(f"发送至频道{guild_id}的子频道{channel_id}的消息为空！")
+        if guild_id != channel_id:
+            logger.error(f"发送至频道{guild_id}的子频道{channel_id}的消息为空！")
+        else:
+            logger.error(f"发送至群聊{guild_id}的的消息为空！")
         return
     data = {
         "guild_id":guild_id,
@@ -204,6 +207,7 @@ async def get_user_auth(channel: tuple[str, str], user_id: str, typ: str = None,
         async with httpx.AsyncClient() as client:
             res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_guild_member_profile", data = message, headers={'Connection':'close'}, timeout=10)
         user_data = res.json()
+        logger.debug(f"频道{channel}用户{user_id}权限查询返回结果:{user_data}")
         if(user_data['retcode'] == 0):
             roles = user_data['data']['roles']
             for role in roles:
@@ -218,6 +222,7 @@ async def get_user_auth(channel: tuple[str, str], user_id: str, typ: str = None,
         async with httpx.AsyncClient() as client:
             res = await client.post(f"{config_dict['cqhttp']['http_url']}/get_group_member_info", data = message, headers={'Connection':'close'}, timeout=10)
         user_data = res.json()
+        logger.debug(f"群聊{channel[0]}用户{user_id}权限查询返回结果:{user_data}")
         if(user_data['retcode'] == 0):
             role = user_data['data']['role']
             if role in ("owner", "admin"):

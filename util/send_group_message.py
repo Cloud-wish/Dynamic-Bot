@@ -1,9 +1,7 @@
 from __future__ import annotations
 import configparser
-import copy
 import logging
-import platform
-import os
+import traceback
 import json
 import requests
 
@@ -24,6 +22,10 @@ def send_group_msg(msg: dict):
     if debug_enable:
         logger.debug(f"已开启Debug模式，消息内容：\n{json.dumps(send_msg, ensure_ascii=False)}")
         return
-    resp = requests.post(f"{http_url}/send_group_msg", data = send_msg, headers={'Connection':'close'})
-    if(resp['retcode'] != 0):
-        logger.error(f"消息发送失败，code：{resp['retcode']} 错误信息：{resp['msg']} {resp.get('wording', '')}")
+    try:
+        resp = requests.post(f"{http_url}/send_group_msg", data = send_msg, headers={'Connection':'close'})
+        resp = resp.json()
+        if(resp['retcode'] != 0):
+            logger.error(f"群聊{msg['guild_id']}消息发送失败\ncode:{resp['retcode']} 错误信息:{resp['msg']} {resp.get('wording', '')}")
+    except:
+        logger.error(f"群聊{msg['guild_id']}消息发送出错！返回值:{resp.text}\n错误信息:\n{traceback.format_exc()}")

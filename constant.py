@@ -34,8 +34,22 @@ command_dict = {
         "bili_live_cover": "/开启直播封面推送",
     },
     "at_all": {
-        "enable": "/开启全体成员提醒",
-        "disable": "/关闭全体成员提醒"
+        "enable": {
+            "weibo": "/开启微博全体推送",
+            "bili_dyn": "/开启动态全体推送",
+            "bili_live_start": "/开启开播全体推送",
+            "bili_live_end": "/开启下播全体推送",
+            "bili_live_title": "/开启直播标题全体推送",
+            "bili_live_cover": "/开启直播封面全体推送",
+        },
+        "disable": {
+            "weibo": "/关闭微博全体推送",
+            "bili_dyn": "/关闭动态全体推送",
+            "bili_live_start": "/关闭开播全体推送",
+            "bili_live_end": "/关闭下播全体推送",
+            "bili_live_title": "/关闭直播标题全体推送",
+            "bili_live_cover": "/关闭直播封面全体推送",
+        }
     },
     "config": {
         "channel": "/查询配置"

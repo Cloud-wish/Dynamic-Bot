@@ -34,11 +34,15 @@ command_dict = {
         "bili_live_cover": "/开启直播封面推送",
     },
     "at_all": {
-        "enable": "/开启@全员",
-        "disable": "/关闭@全员"
+        "enable": "/开启全体成员提醒",
+        "disable": "/关闭全体成员提醒"
     },
     "config": {
         "channel": "/查询配置"
+    },
+    "permission": {
+        "grant": "/设置管理员",
+        "revoke": "/删除管理员"
     },
     "help": "/帮助"
 }

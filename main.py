@@ -1,6 +1,7 @@
 from __future__ import annotations
 import configparser
 import random
+import re
 import time
 import jsons
 import threading
@@ -24,14 +25,7 @@ logger: logging.Logger = init_logger(log_path)
 msg_queue = queue.Queue(maxsize=-1) # infinity length
 config_dict = dict()
 push_config_dict = dict()
-
-permission_dict = None
-
-try:
-    with open("permission.json", "r", encoding="UTF-8") as f:
-        permission_dict = jsons.loads(f.read())
-except:
-    pass
+permission_dict = dict()
 
 BOT_HELP = """1 /添加微博推送
 使用方法：@机器人 /添加微博推送 微博UID
@@ -49,7 +43,11 @@ BOT_HELP = """1 /添加微博推送
 使用方法：@机器人 /关闭推送
 8 /开启推送
 使用方法：@机器人 /开启推送
-9 /查询配置
+9 /设置管理员
+使用方法：@机器人 /设置管理员 @xxx（在QQ群中可替换为QQ号）
+10 /删除管理员
+使用方法：@机器人 /删除管理员 @xxx（在QQ群中可替换为QQ号）
+11 /查询配置
 显示当前子频道的推送配置"""
 
 def cookie_to_dict(cookie: str):
@@ -63,7 +61,7 @@ def cookie_to_dict(cookie: str):
 def load_config():
     cf = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=["#"], comment_prefixes=["#"])
     cf.read(f"config.ini", encoding="UTF-8")
-    global config_dict, push_config_dict
+    global config_dict, push_config_dict, permission_dict
     for name, section in cf.items():
         config_dict[name] = dict()
         for key, value in section.items():
@@ -76,7 +74,14 @@ def load_config():
             elif(value == "false"):
                 value = False
             config_dict[name][key] = value
-    # config_dict["bot"]["bot_id"] = str(config_dict["bot"]["bot_id"])
+
+    def list_to_set(d: dict):
+        for k,v in d.items():
+            if type(v) == list:
+                d[k] = set([tuple(ch) for ch in v])
+            elif type(v) == dict:
+                list_to_set(d[k])
+        
     try:
         with open("push_config.json", "r", encoding="UTF-8") as f:
             push_config_dict = jsons.loads(f.read())
@@ -88,14 +93,14 @@ def load_config():
                 }
                 logger.info("关闭推送的子频道配置迁移完成")
 
-            def list_to_set(d: dict):
-                for k,v in d.items():
-                    if type(v) == list:
-                        d[k] = set([tuple(ch) for ch in v])
-                    elif type(v) == dict:
-                        list_to_set(d[k])
-
             list_to_set(push_config_dict)
+    except:
+        pass
+    try:
+        with open("permission.json", "r", encoding="UTF-8") as f:
+            permission_dict = jsons.loads(f.read())
+
+            list_to_set(permission_dict)
     except:
         pass
     # load bot id
@@ -125,6 +130,10 @@ def load_config():
 def save_push_config():
     with open("push_config.json", "w", encoding="UTF-8") as f:
         f.write(jsons.dumps(push_config_dict))
+
+def save_permission_config():
+    with open("permission.json", "w", encoding="UTF-8") as f:
+        f.write(jsons.dumps(permission_dict))
 
 def put_message(guild_id: str, channel_id: str, message: list[str]):
     while(len(message) > 0 and (len(message[-1]) == 0 or message[-1] == "\n")):
@@ -193,18 +202,6 @@ async def get_user_auth(channel: tuple[str, str], user_id: str, typ: str = None,
             return True
         elif "admin" in permission_dict and guild_id in permission_dict["admin"] and user_id in permission_dict["admin"][guild_id]:
             return True
-        elif typ:
-            if "subtype" in permission_dict and subtype:
-                if typ in permission_dict["subtype"] and subtype in permission_dict["subtype"][typ]:
-                    if not permission_dict["subtype"][typ][subtype]:
-                        return False
-                    elif guild_id in permission_dict["subtype"][typ][subtype]:
-                        return user_id in permission_dict["subtype"][typ][subtype][guild_id]
-            elif "type" in permission_dict and typ in permission_dict["type"]:
-                if not permission_dict["type"][typ]:
-                    return False
-                elif guild_id in permission_dict["type"][typ]:
-                    return user_id in permission_dict["type"][typ][guild_id]
     try:
         if guild_id != channel_id:
             message = {
@@ -242,6 +239,33 @@ async def get_user_auth(channel: tuple[str, str], user_id: str, typ: str = None,
     except:
         errmsg = traceback.format_exc()
         logger.error(f"查询用户权限时出错！错误信息：\n{errmsg}")
+
+@cmd((command_dict["config"]["channel"], ))
+async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel, user_id):
+        return None
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+    else:
+        channel_type = "群聊"
+    reply = [f"当前{channel_type}中设置的推送如下：\n"]
+    for typ in type_dict.keys():
+        reply.append(f"{type_dict[typ]}推送：\n")
+        if(typ in push_config_dict):
+            for x, channels in push_config_dict[typ].items():
+                if(type(channels) == dict):
+                    continue
+                if(channel in channels):
+                    reply.append(f"{x}\n")
+    for typ in sub_type_dict.keys():
+        for subtype in sub_type_dict[typ].keys():
+            reply.append(f"{sub_type_dict[typ][subtype]}推送：\n")
+            if(typ in push_config_dict and subtype in push_config_dict[typ]):
+                for x, channels in push_config_dict[typ][subtype].items():
+                    if(channel in channels):
+                        reply.append(f"{x}\n")
+    reply[-1] = reply[-1].strip()
+    return reply
 
 @cmd((command_dict["add"]["weibo"], "weibo"), (command_dict["add"]["bili_dyn"], "bili_dyn"), (command_dict["add"]["bili_live"], "bili_live"))
 async def add_push(cmd: str, typ: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
@@ -334,35 +358,60 @@ async def remove_sub_push(cmd: str, typ: str, subtype: str, uid: str, user_id: s
     else:
         return f"UID：{uid} 的{sub_type_dict[typ][subtype]}推送不存在！"
 
-@cmd((command_dict["config"]["channel"], ))
-async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
+def cq_at_replace(matched: re.Match):
+    user_id: str = matched.group(1)
+    return user_id
+
+@cmd((command_dict["permission"]["grant"], ))
+async def grant_user_auth(cmd: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
     if not await get_user_auth(channel, user_id):
         return None
     if channel[0] != channel[1]:
         channel_type = "子频道"
     else:
         channel_type = "群聊"
-    reply = [f"当前{channel_type}中设置的推送如下：\n"]
-    for typ in type_dict.keys():
-        reply.append(f"{type_dict[typ]}推送：\n")
-        if(typ in push_config_dict):
-            for x, channels in push_config_dict[typ].items():
-                if(type(channels) == dict):
-                    continue
-                if(channel in channels):
-                    reply.append(f"{x}\n")
-    for typ in sub_type_dict.keys():
-        for subtype in sub_type_dict[typ].keys():
-            reply.append(f"{sub_type_dict[typ][subtype]}推送：\n")
-            if(typ in push_config_dict and subtype in push_config_dict[typ]):
-                for x, channels in push_config_dict[typ][subtype].items():
-                    if(channel in channels):
-                        reply.append(f"{x}\n")
-    reply[-1] = reply[-1].strip()
-    return reply
+
+    if not uid.isdigit():
+        uid = re.sub(r"\[CQ:at,qq=(\S+)?\]", cq_at_replace, uid)
+
+    global permission_dict
+    if not "admin" in permission_dict:
+        permission_dict["admin"] = dict()
+    if not channel[0] in permission_dict:
+        permission_dict["admin"][channel[0]] = set()
+    if not user_id in permission_dict["admin"][channel[0]]:
+        permission_dict["admin"][channel[0]].add(uid)
+        save_permission_config()
+        return f"已授予该用户管理员权限"
+    else:
+        return f"该用户已经是管理员"
+
+@cmd((command_dict["permission"]["revoke"], ))
+async def revoke_user_auth(cmd: str, uid: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel, user_id):
+        return None
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+    else:
+        channel_type = "群聊"
+    
+    if not uid.isdigit():
+        uid = re.sub(r"\[CQ:at,qq=(\S+)?\]", cq_at_replace, uid)
+    
+    global permission_dict
+    if not "admin" in permission_dict:
+        permission_dict["admin"] = dict()
+    if not channel[0] in permission_dict:
+        permission_dict["admin"][channel[0]] = set()
+    if not user_id in permission_dict["admin"][channel[0]]:
+        permission_dict["admin"][channel[0]].remove(uid)
+        save_permission_config()
+        return f"已撤销该用户管理员权限"
+    else:
+        return f"该用户不是管理员"
 
 @cmd((command_dict["at_all"]["enable"], ))
-async def enable_at_all(cmd: str, typ: str, user_id: str, channel: tuple[str, str]) -> str:
+async def enable_at_all(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
     if not await get_user_auth(channel, user_id):
         return None
     if channel[0] != channel[1]:
@@ -372,17 +421,16 @@ async def enable_at_all(cmd: str, typ: str, user_id: str, channel: tuple[str, st
         channel_type = "群聊"
     global push_config_dict
     if(not "at_all" in push_config_dict):
-        push_config_dict["at_all"] = dict()
-    if(not typ in push_config_dict["at_all"]):
-        push_config_dict["at_all"][typ] = set()
-    if not channel in push_config_dict["at_all"][typ]:
-        push_config_dict["at_all"][typ].add(channel)
-        return f"成功开启当前{channel_type}的{type_dict[typ]}全体成员提醒！"
+        push_config_dict["at_all"] = set()
+    if not channel in push_config_dict["at_all"]:
+        push_config_dict["at_all"].add(channel)
+        save_push_config()
+        return f"成功开启当前{channel_type}的全体成员提醒！"
     else:
-        return f"当前{channel_type}的{type_dict[typ]}全体成员提醒已开启！"
+        return f"当前{channel_type}的全体成员提醒已开启！"
 
 @cmd((command_dict["at_all"]["disable"], ))
-async def disable_at_all(cmd: str, typ: str, user_id: str, channel: tuple[str, str]) -> str:
+async def disable_at_all(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
     if not await get_user_auth(channel, user_id):
         return None
     if channel[0] != channel[1]:
@@ -392,14 +440,13 @@ async def disable_at_all(cmd: str, typ: str, user_id: str, channel: tuple[str, s
         channel_type = "群聊"
     global push_config_dict
     if(not "at_all" in push_config_dict):
-        push_config_dict["at_all"] = dict()
-    if(not typ in push_config_dict["at_all"]):
-        push_config_dict["at_all"][typ] = set()
-    if channel in push_config_dict["at_all"][typ]:
-        push_config_dict["at_all"][typ].remove(channel)
-        return f"成功关闭当前{channel_type}的{type_dict[typ]}全体成员提醒！"
+        push_config_dict["at_all"] = set(())
+    if channel in push_config_dict["at_all"]:
+        push_config_dict["at_all"].remove(channel)
+        save_push_config()
+        return f"成功关闭当前{channel_type}的全体成员提醒！"
     else:
-        return f"当前{channel_type}的{type_dict[typ]}全体成员提醒已关闭！"
+        return f"当前{channel_type}的全体成员提醒已关闭！"
 
 @cmd((command_dict["disable"]["all"], "all"), (command_dict["disable"]["weibo"], "weibo"), (command_dict["disable"]["bili_dyn"], "bili_dyn"))
 async def disable_push(cmd: str, typ: str, user_id: str, channel: tuple[str, str]) -> str:
@@ -416,6 +463,7 @@ async def disable_push(cmd: str, typ: str, user_id: str, channel: tuple[str, str
         push_config_dict["blocked"][typ] = set()
     if not channel in push_config_dict["blocked"][typ]:
         push_config_dict["blocked"][typ].add(channel)
+        save_push_config()
         return f"成功关闭当前{channel_type}的{type_dict[typ]}推送！"
     else:
         return f"当前{channel_type}的{type_dict[typ]}推送已关闭！"
@@ -431,6 +479,7 @@ async def enable_push(cmd: str, typ: str, user_id: str, channel: tuple[str, str]
     global push_config_dict
     if("blocked" in push_config_dict and typ in push_config_dict["blocked"] and channel in push_config_dict["blocked"][typ]):
         push_config_dict["blocked"][typ].remove(channel)
+        save_push_config()
         return f"成功开启当前{channel_type}的{type_dict[typ]}推送！"
     else:
         return f"当前{channel_type}的{type_dict[typ]}推送已开启！"
@@ -457,6 +506,7 @@ async def disable_sub_push(cmd: str, typ: str, subtype: str, user_id: str, chann
         sub_block_config_dict[typ][subtype] = set()
     if not channel in sub_block_config_dict[typ][subtype]:
         sub_block_config_dict[typ][subtype].add(channel)
+        save_push_config()
         return f"成功关闭当前{channel_type}的{sub_type_dict[typ][subtype]}推送！"
     else:
         return f"当前{channel_type}的{sub_type_dict[typ][subtype]}推送已关闭！"
@@ -483,6 +533,7 @@ async def enable_sub_push(cmd: str, typ: str, subtype: str, user_id: str, channe
         sub_block_config_dict[typ][subtype] = set()
     if channel in sub_block_config_dict[typ][subtype]:
         sub_block_config_dict[typ][subtype].remove(channel)
+        save_push_config()
         return f"成功开启当前{channel_type}的{sub_type_dict[typ][subtype]}推送！"
     else:
         return f"当前{channel_type}的{sub_type_dict[typ][subtype]}推送已开启！"
@@ -499,9 +550,15 @@ async def receiver(websocket):
         add_sub_push,
         remove_push,
         remove_sub_push,
-        get_help,
+        enable_at_all,
+        disable_at_all,
         disable_push,
-        enable_push
+        disable_sub_push,
+        enable_push,
+        enable_sub_push,
+        grant_user_auth,
+        revoke_user_auth,
+        get_help,
     ]
     ws_relay_conn = None
     logger.info(f"成功建立与cqhttp的Websocket连接")
@@ -607,7 +664,7 @@ async def at_all_process(channel: tuple[str,str], msg: dict, notify_msg: list[di
         logger.error(f"@全体成员推送设置错误，频道暂不支持该功能，请修改")
         return
     msg_type = msg["type"]
-    if "at_all" in push_config_dict and msg_type in push_config_dict["at_all"] and channel in push_config_dict["at_all"][msg_type]:
+    if "at_all" in push_config_dict and channel in push_config_dict["at_all"]:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.post(url=config_dict["cqhttp"]["http_url"]+"/get_group_at_all_remain", json={"group_id": channel[0]})

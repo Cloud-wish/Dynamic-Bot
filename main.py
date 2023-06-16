@@ -97,6 +97,7 @@ def load_config():
                 logger.info("关闭推送的子频道配置迁移完成")
 
             list_to_set(push_config_dict, is_tuple=True)
+            logger.debug(f"权限配置:{push_config_dict}")
     except:
         logger.error(f"推送配置文件加载出错!错误信息:{traceback.format_exc()}")
         pass
@@ -447,7 +448,7 @@ async def disable_at_all(cmd: str, user_id: str, channel: tuple[str, str]) -> st
         channel_type = "群聊"
     global push_config_dict
     if(not "at_all" in push_config_dict):
-        push_config_dict["at_all"] = set(())
+        push_config_dict["at_all"] = set()
     if channel in push_config_dict["at_all"]:
         push_config_dict["at_all"].remove(channel)
         save_push_config()
@@ -668,7 +669,7 @@ def is_channel_blocked(channel: tuple[str,str], msg: dict) -> bool:
     else:
         return False
 
-async def at_all_process(channel: tuple[str,str], msg: dict, notify_msg: list[dict]) -> None:
+async def at_all_process(channel: tuple[str,str], msg: dict, notify_msg: list[str]) -> None:
     if channel[0] != channel[1]:
         logger.error(f"@全体成员推送设置错误，频道暂不支持该功能，请修改")
         return
@@ -683,6 +684,7 @@ async def at_all_process(channel: tuple[str,str], msg: dict, notify_msg: list[di
                 else:
                     if resp["data"]["can_at_all"] and resp["data"]["remain_at_all_count_for_uin"] > 0:
                         notify_msg.insert(0, "[CQ:at,qq=all]") # 添加@全体成员
+                        logger.debug(f"bot在群聊{channel[0]}推送一条@全体成员消息")
                     else:
                         notify_msg.insert(0, "(@全体成员次数已耗尽)")
                         logger.info(f"bot在群聊{channel[0]}的@全体成员剩余次数已耗尽")

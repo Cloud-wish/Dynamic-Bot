@@ -83,7 +83,7 @@ def load_config():
                 else:
                     d[k] = set(v)
             elif type(v) == dict:
-                list_to_set(d[k])
+                list_to_set(d[k], is_tuple)
         
     try:
         with open("push_config.json", "r", encoding="UTF-8") as f:

@@ -101,7 +101,9 @@ def load_config():
             permission_dict = jsons.loads(f.read())
 
             list_to_set(permission_dict)
+            logger.debug(f"权限配置:{permission_dict}")
     except:
+        logger.error(f"权限配置文件加载出错!错误信息:{traceback.format_exc()}")
         pass
     # load bot id
     try:

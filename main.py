@@ -727,7 +727,7 @@ async def dispatcher():
                                 logger.info(f"接收到消息：\n{notify_msg}\n推送频道列表：{push_channel_list}")
                                 for channel in push_channel_list:
                                     if not is_channel_blocked(channel, msg):
-                                        at_all_process(channel, msg, notify_msg)
+                                        await at_all_process(channel, msg, notify_msg)
                                         put_message(channel[0], channel[1], notify_msg)
         except Exception as e:
             logger.error(f"与Crawler的Websocket连接出错！错误信息：\n{traceback.format_exc()}\n尝试重连...")

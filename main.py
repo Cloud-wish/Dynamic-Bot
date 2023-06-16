@@ -266,6 +266,8 @@ async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> s
                 if(channel in channels):
                     reply.append(f"{x}\n")
     for typ in sub_type_dict.keys():
+        if typ == "bili_live":
+            continue
         for subtype in sub_type_dict[typ].keys():
             reply.append(f"{sub_type_dict[typ][subtype]}推送：\n")
             if(typ in push_config_dict and subtype in push_config_dict[typ]):
@@ -472,9 +474,9 @@ async def disable_push(cmd: str, typ: str, user_id: str, channel: tuple[str, str
     if not channel in push_config_dict["blocked"][typ]:
         push_config_dict["blocked"][typ].add(channel)
         save_push_config()
-        return f"成功关闭当前{channel_type}的{type_dict[typ]}推送！"
+        return f"成功关闭当前{channel_type}的{type_dict.get(typ, '')}推送！"
     else:
-        return f"当前{channel_type}的{type_dict[typ]}推送已关闭！"
+        return f"当前{channel_type}的{type_dict.get(typ, '')}推送已关闭！"
 
 @cmd((command_dict["enable"]["all"], "all"), (command_dict["enable"]["weibo"], "weibo"), (command_dict["enable"]["bili_dyn"], "bili_dyn"))
 async def enable_push(cmd: str, typ: str, user_id: str, channel: tuple[str, str]) -> str:
@@ -488,9 +490,9 @@ async def enable_push(cmd: str, typ: str, user_id: str, channel: tuple[str, str]
     if("blocked" in push_config_dict and typ in push_config_dict["blocked"] and channel in push_config_dict["blocked"][typ]):
         push_config_dict["blocked"][typ].remove(channel)
         save_push_config()
-        return f"成功开启当前{channel_type}的{type_dict[typ]}推送！"
+        return f"成功开启当前{channel_type}的{type_dict.get(typ, '')}推送！"
     else:
-        return f"当前{channel_type}的{type_dict[typ]}推送已开启！"
+        return f"当前{channel_type}的{type_dict.get(typ, '')}推送已开启！"
 
 @cmd((command_dict["disable"]["bili_live_start"], "bili_live", "live_start"), (command_dict["disable"]["bili_live_end"], "bili_live", "live_end"), (command_dict["disable"]["bili_live_title"], "bili_live", "title"), (command_dict["disable"]["bili_live_cover"], "bili_live", "cover"))
 async def disable_sub_push(cmd: str, typ: str, subtype: str, user_id: str, channel: tuple[str, str]) -> str:

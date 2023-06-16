@@ -51,7 +51,6 @@ type_dict = {
     "weibo": "微博",
     "bili_dyn": "动态",
     "bili_live": "直播",
-    "all": ""
 }
 
 sub_type_dict = {

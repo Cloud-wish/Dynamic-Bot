@@ -80,16 +80,22 @@ def load_config():
     try:
         with open("push_config.json", "r", encoding="UTF-8") as f:
             push_config_dict = jsons.loads(f.read())
-            for typ in push_config_dict.keys():
-                if(type(push_config_dict[typ]) == dict):
-                    for x in push_config_dict[typ].keys():
-                        if(type(push_config_dict[typ][x]) == dict):
-                            for uid in push_config_dict[typ][x].keys():
-                                push_config_dict[typ][x][uid] = set([tuple(channel) for channel in push_config_dict[typ][x][uid]])
-                        else:
-                            push_config_dict[typ][x] = set([tuple(channel) for channel in push_config_dict[typ][x]])
-                else:
-                    push_config_dict[typ] = set([tuple(channel) for channel in push_config_dict[typ]])
+
+            if "blocked" in push_config_dict and type(push_config_dict["blocked"]) == list:
+                block_list = push_config_dict["blocked"]
+                push_config_dict["blocked"] = {
+                    "all": block_list
+                }
+                logger.info("关闭推送的子频道配置迁移完成")
+
+            def list_to_set(d: dict):
+                for k,v in d.items():
+                    if type(v) == list:
+                        d[k] = set([tuple(ch) for ch in v])
+                    elif type(v) == dict:
+                        list_to_set(d[k])
+
+            list_to_set(push_config_dict)
     except:
         pass
     # load bot id
@@ -212,7 +218,7 @@ async def get_user_auth(channel: tuple[str, str], user_id: str, typ: str = None,
             if(user_data['retcode'] == 0):
                 roles = user_data['data']['roles']
                 for role in roles:
-                    if(role['role_id'] == '2'):
+                    if(role['role_id'] in ('2', '4')):
                         return True
             else:
                 logger.error(f"频道{channel}用户{user_id}权限查询返回错误！\ncode：{user_data['retcode']} msg：{user_data['wording']}")
@@ -336,7 +342,7 @@ async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> s
         channel_type = "子频道"
     else:
         channel_type = "群聊"
-    reply = [f"当前{channel_type}中开启的推送如下：\n"]
+    reply = [f"当前{channel_type}中设置的推送如下：\n"]
     for typ in type_dict.keys():
         reply.append(f"{type_dict[typ]}推送：\n")
         if(typ in push_config_dict):
@@ -355,8 +361,48 @@ async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> s
     reply[-1] = reply[-1].strip()
     return reply
 
-@cmd((command_dict["disable"]["channel"], ))
-async def disable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
+@cmd((command_dict["at_all"]["enable"], ))
+async def enable_at_all(cmd: str, typ: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel, user_id):
+        return None
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+        return "频道暂不支持该功能！"
+    else:
+        channel_type = "群聊"
+    global push_config_dict
+    if(not "at_all" in push_config_dict):
+        push_config_dict["at_all"] = dict()
+    if(not typ in push_config_dict["at_all"]):
+        push_config_dict["at_all"][typ] = set()
+    if not channel in push_config_dict["at_all"][typ]:
+        push_config_dict["at_all"][typ].add(channel)
+        return f"成功开启当前{channel_type}的{type_dict[typ]}全体成员提醒！"
+    else:
+        return f"当前{channel_type}的{type_dict[typ]}全体成员提醒已开启！"
+
+@cmd((command_dict["at_all"]["disable"], ))
+async def disable_at_all(cmd: str, typ: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel, user_id):
+        return None
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+        return "频道暂不支持该功能！"
+    else:
+        channel_type = "群聊"
+    global push_config_dict
+    if(not "at_all" in push_config_dict):
+        push_config_dict["at_all"] = dict()
+    if(not typ in push_config_dict["at_all"]):
+        push_config_dict["at_all"][typ] = set()
+    if channel in push_config_dict["at_all"][typ]:
+        push_config_dict["at_all"][typ].remove(channel)
+        return f"成功关闭当前{channel_type}的{type_dict[typ]}全体成员提醒！"
+    else:
+        return f"当前{channel_type}的{type_dict[typ]}全体成员提醒已关闭！"
+
+@cmd((command_dict["disable"]["all"], "all"), (command_dict["disable"]["weibo"], "weibo"), (command_dict["disable"]["bili_dyn"], "bili_dyn"))
+async def disable_push(cmd: str, typ: str, user_id: str, channel: tuple[str, str]) -> str:
     if not await get_user_auth(channel, user_id):
         return None
     if channel[0] != channel[1]:
@@ -365,15 +411,17 @@ async def disable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
         channel_type = "群聊"
     global push_config_dict
     if(not "blocked" in push_config_dict):
-        push_config_dict["blocked"] = set()
-    if(not channel in push_config_dict["blocked"]):
-        push_config_dict["blocked"].add(channel)
-        return f"成功关闭当前{channel_type}的推送功能！"
+        push_config_dict["blocked"] = dict()
+    if(not typ in push_config_dict["blocked"]):
+        push_config_dict["blocked"][typ] = set()
+    if not channel in push_config_dict["blocked"][typ]:
+        push_config_dict["blocked"][typ].add(channel)
+        return f"成功关闭当前{channel_type}的{type_dict[typ]}推送！"
     else:
-        return f"当前{channel_type}的推送功能已关闭！"
+        return f"当前{channel_type}的{type_dict[typ]}推送已关闭！"
 
-@cmd((command_dict["enable"]["channel"], ))
-async def enable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
+@cmd((command_dict["enable"]["all"], "all"), (command_dict["enable"]["weibo"], "weibo"), (command_dict["enable"]["bili_dyn"], "bili_dyn"))
+async def enable_push(cmd: str, typ: str, user_id: str, channel: tuple[str, str]) -> str:
     if not await get_user_auth(channel, user_id):
         return None
     if channel[0] != channel[1]:
@@ -381,11 +429,63 @@ async def enable_push(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
     else:
         channel_type = "群聊"
     global push_config_dict
-    if("blocked" in push_config_dict and channel in push_config_dict["blocked"]):
-        push_config_dict["blocked"].remove(channel)
-        return f"成功开启当前{channel_type}的推送功能！"
+    if("blocked" in push_config_dict and typ in push_config_dict["blocked"] and channel in push_config_dict["blocked"][typ]):
+        push_config_dict["blocked"][typ].remove(channel)
+        return f"成功开启当前{channel_type}的{type_dict[typ]}推送！"
     else:
-        return f"当前{channel_type}的推送功能已开启！"
+        return f"当前{channel_type}的{type_dict[typ]}推送已开启！"
+
+@cmd((command_dict["disable"]["bili_live_start"], "bili_live", "live_start"), (command_dict["disable"]["bili_live_end"], "bili_live", "live_end"), (command_dict["disable"]["bili_live_title"], "bili_live", "title"), (command_dict["disable"]["bili_live_cover"], "bili_live", "cover"))
+async def disable_sub_push(cmd: str, typ: str, subtype: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel, user_id):
+        return None
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+    else:
+        channel_type = "群聊"
+
+    global push_config_dict
+    if(not "blocked" in push_config_dict):
+        push_config_dict["blocked"] = dict()
+    if(not "subtype" in push_config_dict):
+        push_config_dict["blocked"]["subtype"] = dict()
+    sub_block_config_dict = push_config_dict["blocked"]["subtype"]
+
+    if(not typ in sub_block_config_dict):
+        sub_block_config_dict[typ] = dict()
+    if(not subtype in sub_block_config_dict):
+        sub_block_config_dict[typ][subtype] = set()
+    if not channel in sub_block_config_dict[typ][subtype]:
+        sub_block_config_dict[typ][subtype].add(channel)
+        return f"成功关闭当前{channel_type}的{sub_type_dict[typ][subtype]}推送！"
+    else:
+        return f"当前{channel_type}的{sub_type_dict[typ][subtype]}推送已关闭！"
+
+@cmd((command_dict["enable"]["bili_live_start"], "bili_live", "live_start"), (command_dict["enable"]["bili_live_end"], "bili_live", "live_end"), (command_dict["enable"]["bili_live_title"], "bili_live", "title"), (command_dict["enable"]["bili_live_cover"], "bili_live", "cover"))
+async def enable_sub_push(cmd: str, typ: str, subtype: str, user_id: str, channel: tuple[str, str]) -> str:
+    if not await get_user_auth(channel, user_id):
+        return None
+    if channel[0] != channel[1]:
+        channel_type = "子频道"
+    else:
+        channel_type = "群聊"
+
+    global push_config_dict
+    if(not "blocked" in push_config_dict):
+        push_config_dict["blocked"] = dict()
+    if(not "subtype" in push_config_dict):
+        push_config_dict["blocked"]["subtype"] = dict()
+    sub_block_config_dict = push_config_dict["blocked"]["subtype"]
+
+    if(not typ in sub_block_config_dict):
+        sub_block_config_dict[typ] = dict()
+    if(not subtype in sub_block_config_dict):
+        sub_block_config_dict[typ][subtype] = set()
+    if channel in sub_block_config_dict[typ][subtype]:
+        sub_block_config_dict[typ][subtype].remove(channel)
+        return f"成功开启当前{channel_type}的{sub_type_dict[typ][subtype]}推送！"
+    else:
+        return f"当前{channel_type}的{sub_type_dict[typ][subtype]}推送已开启！"
 
 @cmd((command_dict["help"], ))
 async def get_help(cmd: str, user_id: str, channel: tuple[str, str]) -> str:
@@ -482,6 +582,47 @@ async def build_notify_msg(data) -> list[str]:
     except:
         logger.error(f"解析{type_dict.get(typ, '未知类型')}消息时发生错误！错误消息：\n{traceback.format_exc()}")
 
+def is_channel_blocked(channel: tuple[str,str], msg: dict) -> bool:
+    msg_type = msg["type"]
+    subtype = msg["subtype"]
+    if msg_type == "bili_live" and subtype == "status":
+        if(msg['now'] == "1"):
+            subtype = "live_start"
+        elif(msg['pre'] == "1"):
+            subtype = "live_end"
+        else:
+            logger.error(f"接收到状态未知的直播间消息\n消息内容:{msg}")
+            return True
+    if "all" in push_config_dict["blocked"] and channel in push_config_dict["blocked"]["all"]:
+        return True
+    if msg_type in push_config_dict["blocked"] and channel in push_config_dict["blocked"][msg_type]:
+        return True
+    elif "subtype" in push_config_dict["blocked"] and msg_type in push_config_dict["blocked"]["subtype"] and subtype in push_config_dict["blocked"]["subtype"][msg_type] and channel in push_config_dict["blocked"]["subtype"][msg_type][subtype]:
+        return True
+    else:
+        return False
+
+async def at_all_process(channel: tuple[str,str], msg: dict, notify_msg: list[dict]) -> None:
+    if channel[0] != channel[1]:
+        logger.error(f"@全体成员推送设置错误，频道暂不支持该功能，请修改")
+        return
+    msg_type = msg["type"]
+    if "at_all" in push_config_dict and msg_type in push_config_dict["at_all"] and channel in push_config_dict["at_all"][msg_type]:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url=config_dict["cqhttp"]["http_url"]+"/get_group_at_all_remain", json={"group_id": channel[0]})
+                resp = resp.json()
+                if resp["retcode"] != 0:
+                    logger.error(f"获取bot在群聊{channel[0]}的@全体成员剩余次数时返回错误！\ncode：{resp['retcode']} msg：{resp['wording']}")
+                else:
+                    if resp["data"]["can_at_all"] and resp["data"]["remain_at_all_count_for_uin"] > 0:
+                        notify_msg.insert(0, "[CQ:at,qq=all]") # 添加@全体成员
+                    else:
+                        notify_msg.insert(0, "(@全体成员次数已耗尽)")
+                        logger.info(f"bot在群聊{channel[0]}的@全体成员剩余次数已耗尽")
+        except:
+            logger.error(f"处理@全体成员的推送消息时出错!错误信息:{traceback.format_exc()}")
+
 async def dispatcher():
     while True: # 断线重连
         try:
@@ -515,7 +656,8 @@ async def dispatcher():
                             if(notify_msg):
                                 logger.info(f"接收到消息：\n{notify_msg}\n推送频道列表：{push_channel_list}")
                                 for channel in push_channel_list:
-                                    if(not channel in push_config_dict.get("blocked", tuple())):
+                                    if not is_channel_blocked(channel, msg):
+                                        at_all_process(channel, msg, notify_msg)
                                         put_message(channel[0], channel[1], notify_msg)
         except Exception as e:
             logger.error(f"与Crawler的Websocket连接出错！错误信息：\n{traceback.format_exc()}\n尝试重连...")

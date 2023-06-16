@@ -16,10 +16,26 @@ command_dict = {
         "bili_dyn_latest_comment": "/删除动态评论推送"
     },
     "disable": {
-        "channel": "/关闭推送"
+        "all": "/关闭推送",
+        "weibo": "/关闭微博推送",
+        "bili_dyn": "/关闭动态推送",
+        "bili_live_start": "/关闭开播推送",
+        "bili_live_end": "/关闭下播推送",
+        "bili_live_title": "/关闭直播标题推送",
+        "bili_live_cover": "/关闭直播封面推送",
     },
     "enable": {
-        "channel": "/开启推送"
+        "all": "/开启推送",
+        "weibo": "/开启微博推送",
+        "bili_dyn": "/开启动态推送",
+        "bili_live_start": "/开启开播推送",
+        "bili_live_end": "/开启下播推送",
+        "bili_live_title": "/开启直播标题推送",
+        "bili_live_cover": "/开启直播封面推送",
+    },
+    "at_all": {
+        "enable": "/开启@全员",
+        "disable": "/关闭@全员"
     },
     "config": {
         "channel": "/查询配置"
@@ -30,7 +46,8 @@ command_dict = {
 type_dict = {
     "weibo": "微博",
     "bili_dyn": "动态",
-    "bili_live": "直播"
+    "bili_live": "直播",
+    "all": ""
 }
 
 sub_type_dict = {
@@ -39,5 +56,11 @@ sub_type_dict = {
     },
     "bili_dyn": {
         "comment": "动态评论"
+    },
+    "bili_live": {
+        "live_start": "开播",
+        "live_end": "下播",
+        "title": "直播间标题",
+        "cover": "直播间封面"
     }
 }

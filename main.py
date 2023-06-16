@@ -98,7 +98,9 @@ def load_config():
 
             list_to_set(push_config_dict, is_tuple=True)
     except:
+        logger.error(f"推送配置文件加载出错!错误信息:{traceback.format_exc()}")
         pass
+
     try:
         with open("permission.json", "r", encoding="UTF-8") as f:
             permission_dict = jsons.loads(f.read())

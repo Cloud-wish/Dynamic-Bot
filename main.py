@@ -75,10 +75,13 @@ def load_config():
                 value = False
             config_dict[name][key] = value
 
-    def list_to_set(d: dict):
+    def list_to_set(d: dict, is_tuple: bool):
         for k,v in d.items():
             if type(v) == list:
-                d[k] = set([tuple(ch) for ch in v])
+                if is_tuple:
+                    d[k] = set([tuple(ch) for ch in v])
+                else:
+                    d[k] = set(v)
             elif type(v) == dict:
                 list_to_set(d[k])
         
@@ -93,14 +96,14 @@ def load_config():
                 }
                 logger.info("关闭推送的子频道配置迁移完成")
 
-            list_to_set(push_config_dict)
+            list_to_set(push_config_dict, is_tuple=True)
     except:
         pass
     try:
         with open("permission.json", "r", encoding="UTF-8") as f:
             permission_dict = jsons.loads(f.read())
 
-            list_to_set(permission_dict)
+            list_to_set(permission_dict, is_tuple=False)
             logger.debug(f"权限配置:{permission_dict}")
     except:
         logger.error(f"权限配置文件加载出错!错误信息:{traceback.format_exc()}")

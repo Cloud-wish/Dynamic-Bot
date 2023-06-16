@@ -657,6 +657,8 @@ def is_channel_blocked(channel: tuple[str,str], msg: dict) -> bool:
         else:
             logger.error(f"接收到状态未知的直播间消息\n消息内容:{msg}")
             return True
+    if not "blocked" in push_config_dict:
+        return False
     if "all" in push_config_dict["blocked"] and channel in push_config_dict["blocked"]["all"]:
         return True
     if msg_type in push_config_dict["blocked"] and channel in push_config_dict["blocked"][msg_type]:

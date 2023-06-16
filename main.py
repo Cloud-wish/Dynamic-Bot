@@ -403,7 +403,7 @@ async def revoke_user_auth(cmd: str, uid: str, user_id: str, channel: tuple[str,
         permission_dict["admin"] = dict()
     if not channel[0] in permission_dict:
         permission_dict["admin"][channel[0]] = set()
-    if not user_id in permission_dict["admin"][channel[0]]:
+    if user_id in permission_dict["admin"][channel[0]]:
         permission_dict["admin"][channel[0]].remove(uid)
         save_permission_config()
         return f"已撤销该用户管理员权限"

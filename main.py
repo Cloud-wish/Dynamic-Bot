@@ -97,7 +97,7 @@ def load_config():
                 logger.info("关闭推送的子频道配置迁移完成")
 
             list_to_set(push_config_dict, is_tuple=True)
-            logger.debug(f"权限配置:{push_config_dict}")
+            logger.debug(f"推送配置:{push_config_dict}")
     except:
         logger.error(f"推送配置文件加载出错!错误信息:{traceback.format_exc()}")
         pass

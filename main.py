@@ -284,13 +284,13 @@ async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> s
         if "subtype" in push_config_dict:
             sub_block_config_dict = push_config_dict["blocked"]["subtype"]
             for typ in sub_block_config_dict.keys():
-                for subtype, channels in sub_block_config_dict[typ]:
+                for subtype, channels in sub_block_config_dict[typ].items():
                     if channel in channels:
                         blocked_list.append(sub_type_dict[typ][subtype])
     if not blocked_list:
-        reply.append("无")
+        reply.append("无\n")
     else:
-        reply.append("，".join(blocked_list))
+        reply.append("，".join(blocked_list) + "\n")
 
     reply.append("已开启的全体推送：\n")
     at_all_list = []
@@ -301,13 +301,13 @@ async def get_push_config(cmd: str, user_id: str, channel: tuple[str, str]) -> s
         if "subtype" in push_config_dict:
             sub_at_all_config_dict = push_config_dict["at_all"]["subtype"]
             for typ in sub_at_all_config_dict.keys():
-                for subtype, channels in sub_at_all_config_dict[typ]:
+                for subtype, channels in sub_at_all_config_dict[typ].items():
                     if channel in channels:
                         at_all_list.append(sub_type_dict[typ][subtype])
     if not at_all_list:
-        reply.append("无")
+        reply.append("无\n")
     else:
-        reply.append("，".join(at_all_list))
+        reply.append("，".join(at_all_list) + "\n")
 
     reply[-1] = reply[-1].strip()
     return reply

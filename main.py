@@ -488,7 +488,7 @@ async def disable_at_all(cmd: str, typ: str, user_id: str, channel: tuple[str, s
         push_config_dict["at_all"] = dict()
     if(not typ in push_config_dict["at_all"]):
         push_config_dict["at_all"][typ] = set()
-    if not channel in push_config_dict["at_all"][typ]:
+    if channel in push_config_dict["at_all"][typ]:
         push_config_dict["at_all"][typ].remove(channel)
         save_push_config()
         return f"成功关闭当前{channel_type}的{type_dict.get(typ, '')}全体推送！"
@@ -542,7 +542,7 @@ async def disable_sub_at_all(cmd: str, typ: str, subtype: str, user_id: str, cha
         sub_at_all_config_dict[typ] = dict()
     if(not subtype in sub_at_all_config_dict):
         sub_at_all_config_dict[typ][subtype] = set()
-    if not channel in sub_at_all_config_dict[typ][subtype]:
+    if channel in sub_at_all_config_dict[typ][subtype]:
         sub_at_all_config_dict[typ][subtype].remove(channel)
         save_push_config()
         return f"成功关闭当前{channel_type}的{sub_type_dict[typ][subtype]}全体推送！"

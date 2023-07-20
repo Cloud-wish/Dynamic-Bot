@@ -248,8 +248,12 @@ for(i=0;i<elements.length;i++) {
 
     async def get_bili_dyn_pic(self, dynamic_id: str, created_time: str = None) -> bytes:
         mobile_bili_ua = 'Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36'
+        pc_bili_ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
         browser = await self.get_browser()
-        context = await browser.new_context(user_agent=mobile_bili_ua, device_scale_factor=2)
+        if self.get_config("bili_dyn_pc", False):
+            context = await browser.new_context(user_agent=pc_bili_ua, device_scale_factor=2)
+        else:
+            context = await browser.new_context(user_agent=mobile_bili_ua, device_scale_factor=2)
         page = await context.new_page()
         try:
             await page.set_viewport_size({'width':560, 'height':3500})

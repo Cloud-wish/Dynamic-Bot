@@ -229,6 +229,23 @@ for(i=0;i<elements.length;i++) {
         # await page.wait_for_timeout(600000)
         return await page.locator('[class="dyn-card"]').screenshot()
 
+    async def bili_dyn_pc_process(self, page: Page, created_time: str = None):
+        # await page.wait_for_timeout(600000)
+        try: # 右下角登录提示
+            await page.evaluate('document.getElementsByClassName("login-tip")[0].style.display = "none"')
+        except:
+            pass
+        try: # 顶栏登录提示
+            await page.evaluate('document.getElementsByClassName("van-popover").forEach(e => e.style.display = "none")')
+        except:
+            pass
+        try: # 顶栏
+            await page.evaluate('document.getElementsByClassName("international-header")[0].style.display = "none"')
+        except:
+            pass
+        # await page.wait_for_timeout(600000)
+        return await page.locator('[class="bili-dyn-item__main"]').screenshot()
+
     async def get_bili_dyn_pic(self, dynamic_id: str, created_time: str = None) -> bytes:
         mobile_bili_ua = 'Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36'
         browser = await self.get_browser()
@@ -236,11 +253,16 @@ for(i=0;i<elements.length;i++) {
         page = await context.new_page()
         try:
             await page.set_viewport_size({'width':560, 'height':3500})
-            if self.get_config("bili_dyn_new_style", False):
+            if self.get_config("bili_dyn_pc", False):
+                await page.goto('https://t.bilibili.com/'+dynamic_id, wait_until="networkidle", timeout=15000)
+            elif self.get_config("bili_dyn_new_style", False):
                 await page.goto('https://m.bilibili.com/opus/'+dynamic_id, wait_until="networkidle", timeout=15000)
             else:
                 await page.goto('https://m.bilibili.com/dynamic/'+dynamic_id, wait_until="networkidle", timeout=15000)
-            if "opus" in page.url:
+            
+            if self.get_config("bili_dyn_pc", False):
+                pic = await self.bili_dyn_pc_process(page, created_time)
+            elif "opus" in page.url:
                 pic = await self.bili_dyn_opus_process(page, created_time)
             else:
                 pic = await self.bili_dyn_dynamic_process(page, created_time)

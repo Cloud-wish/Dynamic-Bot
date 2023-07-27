@@ -283,7 +283,7 @@ async def dynamic_pic_builder(subtype: str, uid: str, data: dict) -> list[str]:
             content.append("发了新动态并说：\n")
     for i in range(3):
         try:
-            pic = await pic_builder.get_bili_dyn_pic(data["id"], data["created_time"])
+            pic = await pic_builder.get_bili_dyn_pic(data["id"], data["created_time"], data.get("cookie"))
             break
         except:
             if i == 2:

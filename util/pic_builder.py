@@ -16,7 +16,8 @@ def cookie_to_dict_list(cookie: str, domain: str):
         cookies.append({
             "name": cookie_pair[0],
             "value": cookie_pair[1],
-            "url": domain
+            "domain": domain,
+            "path": "/"
         })
     return cookies
 
@@ -60,7 +61,7 @@ class PicBuilder:
         if cookie is None:
             cookie = self.get_config("weibo_cookie", "")
         context = await browser.new_context(user_agent=ua, device_scale_factor=2)
-        await context.add_cookies(cookie_to_dict_list(cookie, "https://m.weibo.cn"))
+        await context.add_cookies(cookie_to_dict_list(cookie, ".weibo.cn"))
         page = await context.new_page()
         try:
             page.set_default_timeout(10000)
@@ -246,7 +247,7 @@ for(i=0;i<elements.length;i++) {
         # await page.wait_for_timeout(600000)
         return await page.locator('[class="bili-dyn-item__main"]').screenshot()
 
-    async def get_bili_dyn_pic(self, dynamic_id: str, created_time: str = None) -> bytes:
+    async def get_bili_dyn_pic(self, dynamic_id: str, created_time: str = None, cookie: str = None) -> bytes:
         mobile_bili_ua = 'Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36'
         pc_bili_ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
         browser = await self.get_browser()
@@ -254,6 +255,7 @@ for(i=0;i<elements.length;i++) {
             context = await browser.new_context(user_agent=pc_bili_ua, device_scale_factor=2)
         else:
             context = await browser.new_context(user_agent=mobile_bili_ua, device_scale_factor=2)
+        await context.add_cookies(cookie_to_dict_list(cookie, ".bilibili.com"))
         page = await context.new_page()
         try:
             await page.set_viewport_size({'width':560, 'height':3500})

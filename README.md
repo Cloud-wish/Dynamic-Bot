@@ -3,7 +3,7 @@
 多平台，多Bot实例的动态推送Bot框架
 
 ## 使用
-### 环境配置`
+### 环境配置
 推荐使用Python 3.8
 ```shell
 pip install -r requirements.txt

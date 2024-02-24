@@ -1,0 +1,31 @@
+logger: # 日志记录配置
+  name: dynamic-bot # logger名称
+  debug: false # 开启debug日志
+sender: # 消息发送配置
+  debug: false # 开启后, Bot将不会实际发送消息, 用于测试
+  timeout: 15 # 消息发送请求超时时间(s)
+data: # 数据配置
+  path: data # 数据目录
+builder: # 动态推送消息配置
+  bili_dyn: # bilibili动态
+    is_pc: false # 使用PC端网页样式
+    is_new_layout: true # 尝试使用新版移动端网页样式 (bilibili会根据动态内容判断是否允许使用新版)
+    pic_fail_fallback: true # 动态图片生成失败时, 回退到文字+图片格式发送消息
+    link: true # 消息是否包括原动态网页链接
+  weibo: # 微博
+    link: true # 消息是否包括原动态网页链接
+crawler: # Crawler连接配置
+  ws_url: ws://localhost:30773 # websocket地址
+  http_url: http://localhost:31773 # http地址
+  client_name: dynamic-bot # bot名称
+bots: # bot配置, 支持多个bot, 不同平台
+  bot1: # bot名称
+    bot_type: icqq # bot类型, 对应adapters中的适配器注册类型, 目前提供对icqq/go-cqhttp在群聊中的完整支持
+    api: http://127.0.0.1:5800 # http api地址
+    websocket: # websocket配置
+      host: 127.0.0.1
+      port: 30001
+      relay: # 转发在此bot接收的所有websocket消息
+        enable: true
+        url: ws://localhost:30002
+        retry_count: 1 # 转发失败时的重试次数

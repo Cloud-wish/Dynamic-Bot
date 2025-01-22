@@ -2,10 +2,12 @@ from __future__ import annotations
 import base64
 
 def msg_convert(content: str, file_image: bytes | None) -> list[dict[str]]:
-    msg = [{
-        "type": "text",
-        "data": {"text": content}
-    }]
+    msg = []
+    if(len(content)):
+        msg.append({
+            "type": "text",
+            "data": {"text": content}
+        })
     if type(file_image) is bytes:
         msg.append({
             "type": "image",

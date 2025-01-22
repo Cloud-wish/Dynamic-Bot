@@ -55,12 +55,12 @@ def data_preprocess(data: dict, typ: str) -> dict:
         data["reply"] = data_preprocess(data["reply"], typ)
     return data
 
-async def build_push_msg(data:dict[str], bot_type: BotType) -> dict[str]:
+async def build_push_msg(data:dict[str], bot_id: str, bot_type: BotType) -> dict[str]:
     data = data_preprocess(data, data["type"])
     typ = data["type"]
     subtype = data["subtype"]
     uid = data["user"]["uid"]
-    return await builders(typ, bot_type, data)
+    return await builders(typ, data, bot_id, bot_type)
 
 def auto_import(directory_path):
     """

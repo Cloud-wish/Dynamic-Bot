@@ -23,11 +23,11 @@ async def receive_icqq_msg(message: dict[str], bot_config: dict[str], bot_id: st
     #     content: str = message['message'].rstrip()
     #     channel: tuple[str] = (str(message['guild_id']), str(message['channel_id']))
     #     bot_uid = config_dict["bot"]["guild_id"]
+    # print(message)
     if(message.get('message_type', "") == 'group' and message.get('sub_type', "") == 'normal'):
         # 群聊消息
         if message.get('anonymous', None):
             return
-        content: str = message['raw_message'].rstrip()
         guild_id = channel_id = str(message['group_id'])
         msg_type = MessageType.GROUP
         if "self" in message:
@@ -39,30 +39,31 @@ async def receive_icqq_msg(message: dict[str], bot_config: dict[str], bot_id: st
             return
     else:
         return
-    # if(content.startswith(f'[CQ:at,qq={bot_uid}]')):
-    #     # 是at bot的消息
-    #     content = content.replace(f'[CQ:at,qq={bot_uid}]', '').lstrip()
-    if is_command(content):
-        user_id = str(message['sender']['user_id'])
-        if msg_type == MessageType.GUILD:
-            logger.debug(f"bot:{bot_id} 收到来自频道{guild_id}的子频道{channel_id}的{message['sender']['nickname']}的消息：{content}")
-        elif msg_type == MessageType.GROUP:
-            logger.debug(f"bot:{bot_id} 收到来自群聊{guild_id}的消息：{content}")
-        received_msg = Message(
-            content=content,
-            guild_id=guild_id,
-            channel_id=channel_id,
-            msg_type=msg_type,
-            bot_type=BotType.ICQQ,
-            bot_id=bot_id,
-            sender=MessageSender(
-                user_id=user_id,
-                nickname=message['sender']['nickname'],
-                raw=message['sender']
-            ),
-            raw=message
-        )
-        await dispatch_msg(received_msg)
+    if(message['message'][0]['type'] == 'at' and message['message'][0]['data']['qq'] == bot_uid
+       and len(message['message']) > 1 and message['message'][1]['type'] == 'text'):
+        # 是at bot的消息
+        content = message['message'][1]['data']['text'].lstrip()
+        if is_command(content):
+            user_id = str(message['sender']['user_id'])
+            if msg_type == MessageType.GUILD:
+                logger.debug(f"bot:{bot_id} 收到来自频道{guild_id}的子频道{channel_id}的{message['sender']['nickname']}的消息：{content}")
+            elif msg_type == MessageType.GROUP:
+                logger.debug(f"bot:{bot_id} 收到来自群聊{guild_id}的消息：{content}")
+            received_msg = Message(
+                content=content,
+                guild_id=guild_id,
+                channel_id=channel_id,
+                msg_type=msg_type,
+                bot_type=BotType.ICQQ,
+                bot_id=bot_id,
+                sender=MessageSender(
+                    user_id=user_id,
+                    nickname=message['sender']['nickname'],
+                    raw=message['sender']
+                ),
+                raw=message
+            )
+            await dispatch_msg(received_msg)
 
 @adapters.adapter(BotType.ICQQ)
 async def icqq_bot_client(bot_config: dict, bot_id: str):
@@ -113,7 +114,7 @@ async def icqq_send_group_msg(msg):
     if get_config_value("logger", "debug"):
         _send_msg = copy.deepcopy(send_msg)
         for data in _send_msg["message"]:
-            if data["type"] == "image":
+            if "file" in data.get("data", {}):
                 data["data"]["file"] = f'size:{len(data["data"]["file"])}'
         logger.debug(f"bot:{msg['bot_id']} 要发送的消息内容：\n{json.dumps(_send_msg, ensure_ascii=False)}")
     if get_config_value("sender", "debug"):

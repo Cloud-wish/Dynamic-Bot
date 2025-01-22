@@ -27,7 +27,7 @@ def get_dyn_official_builder():
     return dyn_official_builders
 
 @builders.builder("bili_dyn")
-async def dyn_builder(typ: str, bot_type: BotType, data: dict) -> dict[str]:
+async def dyn_builder(typ: str, data: dict, bot_id: str, bot_type: BotType) -> dict[str]:
     return await dyn_builders(bot_type, data)
 
 @dyn_builders.builder(BotType.ICQQ)
@@ -41,10 +41,10 @@ async def official_builder(bot_type: BotType, data: dict) -> dict[str]:
     # return await dyn_builders(bot_type, data)
 
 @dyn_icqq_builders.builder("dynamic")
-async def dyn_dynamic_builder(subtype: str, data: dict) -> dict[str]:
+async def icqq_dynamic_builder(subtype: str, data: dict) -> dict[str]:
     # 目前实现: 直接返回图片
     # TODO: 设置图片/文字格式
-    dyn_content = await dyn_pic_builder(subtype, data)
+    dyn_content = await dyn_pic_builder(subtype, data, get_config_value("builder", "bili_dyn", "pic_fail_fallback"))
     if get_config_value("builder", "bili_dyn", "link"):
         footer = "\n"
         if data["dyn_type"] == 8:
@@ -60,7 +60,7 @@ async def dyn_dynamic_builder(subtype: str, data: dict) -> dict[str]:
         })
     return dyn_content
 
-async def dyn_pic_builder(subtype: str, data: dict) -> list[str]:
+async def dyn_pic_builder(subtype: str, data: dict, fallback: bool = False) -> list[dict[str]]:
     # if not pic_enable:
     #     return None
 
@@ -98,7 +98,7 @@ async def dyn_pic_builder(subtype: str, data: dict) -> list[str]:
             if i == 2:
                 errmsg = traceback.format_exc()
                 logger.error(f"生成B站动态图片发生错误！错误信息：\n{errmsg}")
-                if get_config_value("builder", "bili_dyn", "pic_fail_fallback"): # 回落到文字
+                if fallback: # 回落到文字
                     return await dynamic_builder(subtype, data)
                 else:
                     content += "[图片无法生成]"

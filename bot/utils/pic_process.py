@@ -54,7 +54,7 @@ def compress_pic(pic: bytes, compress_cnt: int = 1) -> bytes:
     image = Image.open(io.BytesIO(pic))
     image = image.convert('RGB')
     while(compress_cnt > 0):
-        image = image.resize((ceil(image.size[0] / 1.5), ceil(image.size[1] / 1.5)), Image.ANTIALIAS)
+        image = image.resize((ceil(image.size[0] / 1.5), ceil(image.size[1] / 1.5)), Image.Resampling.LANCZOS)
         compress_cnt -= 1
     output = io.BytesIO()
     image.save(output, format="jpeg")

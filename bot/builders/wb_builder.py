@@ -26,7 +26,7 @@ def get_wb_official_builder():
     return wb_official_builders
 
 @builders.builder("weibo")
-async def wb_builder(typ: str, bot_type: BotType, data: dict) -> dict[str]:
+async def wb_builder(typ: str, data: dict, bot_id: str, bot_type: BotType) -> dict[str]:
     return await wb_builders(bot_type, data)
 
 @wb_builders.builder(BotType.ICQQ)

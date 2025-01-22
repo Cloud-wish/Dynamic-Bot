@@ -20,7 +20,7 @@ live_icqq_builders = BuilderTableDef()
 live_official_builders = BuilderTableDef()
 
 @builders.builder("bili_live")
-async def live_builder(typ: str, bot_type: BotType, data: dict) -> dict[str]:
+async def live_builder(typ: str, data: dict, bot_id: str, bot_type: BotType) -> dict[str]:
     return await live_builders(bot_type, data)
 
 @live_builders.builder(BotType.ICQQ)

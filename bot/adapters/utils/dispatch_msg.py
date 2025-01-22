@@ -10,7 +10,6 @@ commands = get_command_table()
 
 async def dispatch_msg(msg: Message):
     try:
-        # logger.debug(commands._str_route_dict)
         await commands(msg["content"], msg)
     except CommandNotFoundException:
         logger.error(f"收到无对应命令的消息: {msg['content']}")

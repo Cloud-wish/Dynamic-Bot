@@ -22,7 +22,8 @@ async def common_push_handler(subtype: str, data: dict, msg_postproc: Awaitable 
     push_configs = get_user_push_config(typ, subtype, uid)
     push_data_cache = {}
     for push_conf in push_configs:
-        bot_conf = get_config_value("bots", push_conf["bot_id"])
+        bot_id = push_conf["bot_id"]
+        bot_conf = get_config_value("bots", bot_id)
         bot_type = BotType(bot_conf["bot_type"])
         if not is_adapter_exist(bot_type):
             logger.error(f"要推送消息的Bot不存在! Bot信息:{bot_conf}")
@@ -36,7 +37,7 @@ async def common_push_handler(subtype: str, data: dict, msg_postproc: Awaitable 
             if bot_type in push_data_cache and msg_type in push_data_cache[bot_type]:
                 push_data = push_data_cache[bot_type][msg_type]
             else:
-                push_data = await build_push_msg(data, bot_type)
+                push_data = await build_push_msg(data, bot_id, bot_type)
                 if not bot_type in push_data_cache:
                     push_data_cache[bot_type] = {}
                 push_data_cache[bot_type][msg_type] = push_data
